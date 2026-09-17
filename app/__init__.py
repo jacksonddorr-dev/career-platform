@@ -1,0 +1,1 @@
+"""Career platform application package."""

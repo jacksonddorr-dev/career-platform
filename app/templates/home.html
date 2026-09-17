@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block body %}
+<section class="hero"><p class="muted">Professional profile</p><h1>{{ content.profile.full_name }}</h1><h2>{{ content.profile.headline }}</h2><p>{{ content.profile.summary }}</p><p><a href="/projects">View selected work</a> · <a href="/contact">Get in touch</a></p></section>
+<section><h2>Selected strengths</h2><div class="grid">{% for category in content.skill_categories %}<div><h3>{{ category.name }}</h3><p>{{ category.skills|map(attribute='name')|join(', ') }}</p></div>{% endfor %}</div></section>
+{% endblock %}
