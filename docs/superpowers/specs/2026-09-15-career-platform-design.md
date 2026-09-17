@@ -56,6 +56,7 @@ The initial build is successful if it can:
 - support content updates via a structured admin interface instead of hardcoded page content
 - make it easy to add projects, experience, skills, and education records
 - keep the content model extensible for future platform features
+- keep the public profile visible even when the database is unavailable
 - launch quickly without introducing platform complexity that is not yet needed
 
 ## 6. Core Functional Requirements
@@ -110,6 +111,14 @@ The site must be:
 - readable with keyboard and screen readers
 - lightweight enough to load quickly
 - visually credible for recruiter evaluation
+
+### 6.6 Data resilience and public availability
+
+The public profile must remain visible even when the database is unavailable.
+
+This requirement is non-negotiable for a personal career site: a recruiter-facing page should not disappear because of a transient database outage or maintenance window. The system should support a graceful fallback mode in which the public site serves a static, cached, or pre-rendered version of the profile content from a reliable source, while admin editing and live updates may be temporarily unavailable.
+
+The fallback experience should preserve the core marketing and information value of the site: headline, summary, experience, projects, skills, education, and contact details. The site should clearly indicate the content is in a read-only fallback state if the app is in degraded mode, without exposing a broken or blank page.
 
 ## 7. Recommended Product Shape
 
@@ -398,6 +407,12 @@ This stack provides clean structure, type-safe data access, and future extension
 - public pages should render quickly
 - data fetching should be efficient and avoid over-querying
 - static site generation should be used where practical
+
+### Resilience
+
+- public profile pages must continue to render from cached or static fallback content when the database is unavailable
+- admin editing may be degraded while the public experience remains available
+- failure paths should avoid blank pages, error screens, or broken layouts during outages
 
 ### Maintainability
 
