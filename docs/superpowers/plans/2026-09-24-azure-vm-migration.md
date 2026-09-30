@@ -4,7 +4,7 @@
 
 > **Redacted for publishing:** the VM's public IP, the laptop IPs, the email address, the SSH key file name, and the host-key fingerprint are replaced with `<PLACEHOLDERS>`. The real values live in Azure and `~/.ssh`.
 
-> **Status (2026-09-29): ✅ All 8 sections complete.** The app runs on `vm-career-platform` (uvicorn pid 14981 since the ~22:44 UTC restart, `0.0.0.0:8000`) with the migrated data. **2026-09-30:** The site now shows Jackson's real resume on both the laptop and the VM (Section 9). uvicorn pid 1727, `0.0.0.0:8000`. It's publicly reachable at `http://<VM_PUBLIC_IP>:8000` via the NSG rule `Temp-HTTP-8000` (open to `*`, not created by Claude). The SSH rule now allows `<LAPTOP_IP>/32`. Still open: uvicorn isn't a systemd service, so it won't survive a reboot; and `pytest` overwrites `data/public-profile.json` (see Task 3.1).
+> **Status (2026-09-29): ✅ All 8 sections complete.** The app runs on `vm-career-platform` (uvicorn pid 14981 since the ~22:44 UTC restart, `0.0.0.0:8000`) with the migrated data. **2026-09-30:** The site now shows Jackson's real resume on both the laptop and the VM (Section 9). **Since 2026-09-30 ~23:28 UTC, uvicorn (pid 2077) listens on `127.0.0.1:8000` only**, so only the VM itself can reach it (Jackson's request). The NSG rule `Temp-HTTP-8000` (open to `*`, not created by Claude) still exists, but nothing answers on 8000 from outside. The SSH rule now allows `<LAPTOP_IP>/32`. Still open: uvicorn isn't a systemd service, so it won't survive a reboot; and `pytest` overwrites `data/public-profile.json` (see Task 3.1).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -25,7 +25,7 @@
 - App directory on the VM: `/home/azureuser/career-platform`. `DATABASE_URL` (`sqlite:///./career_platform.db`) and `SNAPSHOT_PATH` (`data/public-profile.json`) are **relative**, so uvicorn must be started from that directory.
 - The laptop database is `/Users/jacksondorr/career-platform/career_platform.db`. It is gitignored and must never be committed.
 - `.env` holds secrets. It is gitignored and must never be committed. `SESSION_SECRET` must not be the placeholder value.
-- The NSG only allows TCP 22 from `<LAPTOP_IP_OLD>/32`. This plan does **not** open port 8000. ~~uvicorn binds to `127.0.0.1`.~~ **Changed 2026-09-29 at Jackson's request:** uvicorn binds to `0.0.0.0` (all IPv4 addresses) on port 8000. Nothing in Azure was changed, so the NSG still blocks 8000 from the internet.
+- The NSG only allows TCP 22 from `<LAPTOP_IP_OLD>/32`. This plan does **not** open port 8000. ~~uvicorn binds to `127.0.0.1`.~~ **Changed 2026-09-29 at Jackson's request:** uvicorn binds to `0.0.0.0` (all IPv4 addresses) on port 8000. Nothing in Azure was changed, so the NSG still blocks 8000 from the internet. **Changed back 2026-09-30 at Jackson's request:** uvicorn binds to `127.0.0.1` again (loopback only).
 - The migration is complete when `/api/v1/health` returns 200 on the VM and `/` shows the laptop's `profiles.full_name`.
 
 ## Review Focus
@@ -255,6 +255,7 @@ Out of scope, and noted so nobody assumes otherwise: running uvicorn as a system
   - **⚠ Command fix:** Keep `cd` on its own line. Writing `cd … && nohup … &` puts the *whole* `&&` chain in the background, so `$!` is a wrapper bash, not uvicorn. The PID file is then wrong, and when run over `ssh "…"` the session hangs because the wrapper holds stdout. `< /dev/null` also keeps SSH from waiting on stdin.
   - **Result (2026-09-29):** Jackson asked for all addresses on port 8000 instead of `127.0.0.1`. The first start used the `&&` form, which saved the wrapper PID 3304 while uvicorn was 3306, and the SSH session hung. uvicorn 3306 was stopped and restarted with the command above: PID 3381 (parent 1, so fully detached), and `~/uvicorn.pid` = 3381. The log shows `Uvicorn running on http://0.0.0.0:8000` with no traceback. The only DB is `career_platform.db`. `/api/v1/health` → `{"status":"ok","service":"career-platform"}` 200 on both 127.0.0.1 and the VM's private 10.x IP. `ss -ltnp`: `0.0.0.0:8000 uvicorn pid=3381`, alongside sshd on `0.0.0.0:22`/`[::]:22` and systemd-resolved on 127.0.0.53/54:53. No IPv6 listener for 8000.
   - **Restart (2026-09-29, ~22:44 UTC, at Jackson's request):** `kill $(cat ~/uvicorn.pid)` stopped 3381 cleanly (it had been up 29 min), then the start command above ran again. New PID **14981** (parent 1), and the PID file matches. Only one uvicorn process is running (a `pgrep -c` count of 2 included its own `bash -c`). The log is clean, and health is `200` on 127.0.0.1 and the private IP. `ss -ltnp`: `0.0.0.0:8000 uvicorn pid=14981`. Nothing in Azure was changed. Unrelated: Ubuntu **unattended-upgrades** ran at 22:14 UTC and restarted `ssh` and `systemd-resolved` (new PIDs 12296/12292) without a reboot (uptime since 21:14). uvicorn wasn't affected.
+  - **Restart to loopback only (2026-09-30, ~23:28 UTC, at Jackson's request):** Stopped pid 1727 (on `0.0.0.0:8000`, up 15 min) with `kill $(cat ~/uvicorn.pid)`, then started with `--host 127.0.0.1 --port 8000` (otherwise the same command) → pid **2077** (parent 1). The PID file matches, it's the only process named uvicorn, and the log shows `Uvicorn running on http://127.0.0.1:8000`. On the VM, health is `200` and the title is `Jackson Dorr · Career Profile` via 127.0.0.1. Via the VM's private IP there's no connection (`000`). From the laptop, `http://<VM_PUBLIC_IP>:8000/` gives connection refused (curl exit 7), even though `Temp-HTTP-8000` is still open. `ss -ltnp`: `127.0.0.1:8000 uvicorn pid=2077`, sshd on `0.0.0.0:22`/`[::]:22`, systemd-resolved on 127.0.0.53/54:53. Nothing in Azure was changed. To view the site from the laptop, use the SSH tunnel (Task 8.1 Step 3).
 
 ## 8. Verify
 
@@ -344,3 +345,29 @@ Source: `Current_resume.pdf`. Jackson approved the field-by-field mapping on 202
 ### Full rollback (reverse order)
 
 Stop uvicorn (7) → `rm -rf ~/career-platform ~/uvicorn.log` on the VM (removes 3.2, 4.2, 5, 6) → uninstall uv on the VM (4.1) → remove packages you added (2) → optionally `git revert` the lock commit (3.1). The laptop's database and code are never modified by this plan, so the laptop stays the working fallback throughout.
+
+## Appendix: What Verify (Section 8) tested and what it showed
+
+Section 8 ran on 2026-09-29 against the migrated demo database. The same checks were repeated on 2026-09-30 after the resume content was loaded (Task 9.2); that column is included for comparison.
+
+| # | Check | Where | What it tested | Result 2026-09-29 (Section 8) | Re-run 2026-09-30 (Task 9.2) |
+|---|---|---|---|---|---|
+| 1 | Health endpoint `GET /api/v1/health` | VM | The app is up and can reach its database | ✅ `{"status":"ok","service":"career-platform"}`, HTTP 200 | ✅ HTTP 200 |
+| 2 | Profile name on `/` | VM | The page shows the *migrated* data, not an empty DB or cached fallback (name read from the DB, then searched in the HTML) | ✅ `Ada Analyst` found 4× | ✅ `Jackson Dorr` found |
+| 3 | `/about` | VM | Page renders | ✅ 200, 1906 B | ✅ 200, shows `Los Angeles, CA` |
+| 4 | `/experience` | VM | Page renders | ✅ 200, 1928 B | ✅ 200, shows Spotlight Manager, Sonoma County YMCA, "Hosted over 50" |
+| 5 | `/projects` | VM | Page renders | ✅ 200, 1920 B | ✅ 200, "No published projects yet." (expected: the resume has no projects) |
+| 6 | `/skills` | VM | Page renders | ✅ 200, 1895 B | ✅ 200, shows Microsoft Office, Claude Code |
+| 7 | `/education` | VM | Page renders | ✅ 200, 1988 B | ✅ 200, shows Loyola Marymount University, Dean's List |
+| 8 | `/contact` | VM | Page renders | ✅ 200, 1828 B | ✅ 200, shows the resume email |
+| 9 | `/resume.pdf` | VM | The PDF résumé is generated from the DB | ✅ 200, `application/pdf`, 1249 B, starts `%PDF-` | ✅ 200, valid PDF containing "Jackson Dorr" |
+| 10 | Log scan of `~/uvicorn.log` | VM | No request fell back to the cached snapshot and nothing crashed | ✅ 0 `snapshot fallback`, 0 tracebacks | ✅ 0 and 0 |
+| 11 | Snapshot file `data/public-profile.json` | VM | The first successful request rewrote the cache from the real DB | ✅ rewritten, `"full_name": "Ada Analyst"` | ✅ rewritten, `"full_name": "Jackson Dorr"` |
+| 12 | Demo text absent | VM | No seed/demo content remains on any page | n/a (demo data was the content then) | ✅ 0 of 5 demo strings on any page |
+| 13 | Health through SSH tunnel | Laptop → VM | The site is reachable from the laptop without opening a port | ✅ HTTP 200 | n/a (not needed; see #17) |
+| 14 | Page title through tunnel | Laptop → VM | The laptop sees the same data | ✅ `Ada Analyst · Career Profile` | n/a |
+| 15 | `/admin` without logging in | Laptop → VM | Admin is protected | ✅ HTTP 401 | not re-run |
+| 16 | Browser view + admin login | Laptop (Jackson) | A person can see the site and log in with the migrated admin account (via `POST /api/v1/auth/login`; the app has no login page) | ✅ Jackson confirmed: site loads, login worked | not re-run |
+| 17 | Public URL `http://<VM_PUBLIC_IP>:8000/` | Laptop → internet | Reachable from outside (only because NSG rule `Temp-HTTP-8000` exists) | n/a (port 8000 was closed then) | ✅ HTTP 200, `Jackson Dorr · Career Profile` |
+
+**Not tested by Verify:** HTTPS (none), survival across a VM restart (it doesn't survive; uvicorn isn't a systemd service), admin writes through the API, and load or performance.
