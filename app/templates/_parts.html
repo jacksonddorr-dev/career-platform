@@ -1,0 +1,99 @@
+{# Shared section markup for the one-page home and the standalone section routes.
+   Dates arrive as date objects from the database or ISO strings from the snapshot fallback. #}
+{% set MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] %}
+
+{% macro month(d) %}{% if d %}{% set s = d|string %}{{ MONTHS[s[5:7]|int - 1] }} {{ s[:4] }}{% endif %}{% endmacro %}
+
+{% macro span(start, end, current) -%}
+{%- if start %}{{ month(start) }}{% endif -%}
+{%- if end %}{% if start %} – {% endif %}{{ month(end) }}{% elif current %} – Present{% endif -%}
+{%- endmacro %}
+
+{% macro experience(items, h=3) %}
+<ol class="entries">
+{% for item in items %}
+  <li class="entry">
+    <p class="when">{{ span(item.start_date, item.end_date, item.is_current) }}</p>
+    <div>
+      <h{{ h }}>{{ item.title }}</h{{ h }}>
+      <p class="where">{{ item.company_name }}{% if item.location %} · {{ item.location }}{% endif %}</p>
+      {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}
+      {% if item.achievements %}<ul>{% for a in item.achievements %}<li>{{ a.text }}{% if a.metric_value %} <strong>({{ a.metric_value }}{% if a.metric_label %} {{ a.metric_label }}{% endif %})</strong>{% endif %}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  </li>
+{% else %}
+  <li class="empty">Experience will be listed here soon.</li>
+{% endfor %}
+</ol>
+{% endmacro %}
+
+{% macro projects(items, h=3) %}
+<ol class="entries">
+{% for item in items %}
+  <li class="entry">
+    <p class="when">{{ span(item.start_date, item.end_date, false) }}</p>
+    <div>
+      <h{{ h }}>{{ item.title }}</h{{ h }}>
+      {% if item.short_description %}<p>{{ item.short_description }}</p>{% endif %}
+      {% if item.highlights %}<ul>{% for hl in item.highlights %}<li>{{ hl.text }}</li>{% endfor %}</ul>{% endif %}
+      {% if item.project_url or item.repo_url %}<p class="links">{% if item.project_url %}<a href="{{ item.project_url }}">View {{ item.title }}</a>{% endif %}{% if item.repo_url %}<a href="{{ item.repo_url }}">Source code for {{ item.title }}</a>{% endif %}</p>{% endif %}
+    </div>
+  </li>
+{% else %}
+  <li class="empty">No projects are published yet. In the meantime, <a href="/#experience">see experience</a> or <a href="/resume.pdf">download the résumé</a>.</li>
+{% endfor %}
+</ol>
+{% endmacro %}
+
+{% macro education(schools, credentials, h=3) %}
+<ol class="entries">
+{% for item in schools %}
+  <li class="entry">
+    <p class="when">{{ span(item.start_date, item.end_date, false) }}</p>
+    <div>
+      <h{{ h }}>{{ item.institution_name }}</h{{ h }}>
+      <p class="where">{{ item.degree_name }}{% if item.field_of_study %}, {{ item.field_of_study }}{% endif %}{% if item.gpa %} · GPA {{ item.gpa }}{% endif %}</p>
+      {% if item.honors %}
+      <dl class="facts">
+        {% for part in item.honors.split(" · ") %}
+          {% if ": " in part %}{% set pair = part.split(": ", 1) %}<div><dt>{{ pair[0] }}</dt><dd>{{ pair[1] }}</dd></div>
+          {% else %}<div><dt>Honors</dt><dd>{{ part }}</dd></div>{% endif %}
+        {% endfor %}
+      </dl>
+      {% endif %}
+    </div>
+  </li>
+{% endfor %}
+{% for item in credentials %}
+  <li class="entry">
+    <p class="when">{{ month(item.issue_date) }}</p>
+    <div><h{{ h }}>{{ item.title }}</h{{ h }}>{% if item.issuer %}<p class="where">{{ item.issuer }}</p>{% endif %}{% if item.credential_url %}<p class="links"><a href="{{ item.credential_url }}">Verify {{ item.title }}</a></p>{% endif %}</div>
+  </li>
+{% endfor %}
+{% if not schools and not credentials %}<li class="empty">Education will be listed here soon.</li>{% endif %}
+</ol>
+{% endmacro %}
+
+{% macro skills(categories, h=3) %}
+<div class="skills">
+{% for category in categories %}{% if category.skills %}
+  <div>
+    <h{{ h }}>{{ category.name }}</h{{ h }}>
+    <ul>{% for skill in category.skills %}<li>{{ skill.name }}{% if skill.proficiency_level %} <span class="where">· {{ skill.proficiency_level }}</span>{% endif %}</li>{% endfor %}</ul>
+  </div>
+{% endif %}{% else %}<p class="empty">Skills will be listed here soon.</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro contact(profile) %}
+<div class="contact">
+  {% if profile.email %}<p class="contact-email"><a href="mailto:{{ profile.email }}">{{ profile.email }}</a></p>{% endif %}
+  <ul class="actions">
+    {% if profile.email %}<li><a class="button primary" href="mailto:{{ profile.email }}">Email {{ profile.full_name.split(" ")[0] }}</a></li>{% endif %}
+    <li><a class="button" href="/resume.pdf">Download résumé (PDF)</a></li>
+    {% if profile.linkedin_url %}<li><a class="button" href="{{ profile.linkedin_url }}">LinkedIn</a></li>{% endif %}
+    {% if profile.github_url %}<li><a class="button" href="{{ profile.github_url }}">GitHub</a></li>{% endif %}
+  </ul>
+  {% if profile.location %}<p class="where">Based in {{ profile.location }}</p>{% endif %}
+</div>
+{% endmacro %}

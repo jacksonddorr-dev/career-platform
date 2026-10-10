@@ -3,21 +3,133 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ content.profile.full_name }}{% endblock %} · Career Profile</title>
-  <meta name="description" content="{{ content.profile.headline }} — {{ content.profile.summary|truncate(155) }}">
+  <meta name="description" content="{% block description %}{{ content.profile.headline }}{% if content.profile.location %}, {{ content.profile.location }}{% endif %}. Experience, education, skills, and contact details.{% endblock %}">
   <link rel="canonical" href="{{ settings.site_url }}{{ request.url.path }}">
+  <meta property="og:type" content="profile">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  <meta property="og:url" content="{{ settings.site_url }}{{ request.url.path }}">
+  <meta name="theme-color" content="#f7f7f6">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23a63c0a'/%3E%3Ctext x='32' y='43' font-family='Arial,sans-serif' font-size='28' font-weight='700' text-anchor='middle' fill='%23fff8f0'%3EJD%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:ital,wght@0,400;0,600;1,400&display=swap">
   <style>
-    :root { color-scheme: light; font-family: system-ui, sans-serif; line-height: 1.55; color: #172033; background: #f7f9fc; }
-    body { margin: 0; } header, main, footer { max-width: 960px; margin: auto; padding: 1rem 1.25rem; }
-    header { display:flex; justify-content:space-between; align-items:center; gap:1rem; } nav a { margin-left: .75rem; }
-    a { color:#1459a6; } .hero { padding: 4rem 1.25rem 2rem; } section { background:white; margin:1rem 0; padding:1.5rem; border-radius:.6rem; box-shadow:0 1px 4px #1223  }
-    .muted { color:#526070; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1rem; } li { margin:.45rem 0; }
-    :focus-visible { outline:3px solid #f59e0b; outline-offset:3px; }
-    @media (max-width:650px) { header { align-items:flex-start; flex-direction:column; } nav a { margin:0 .75rem 0 0; } }
+    :root {
+      color-scheme: light;
+      --paper: #f7f7f6; --ink: #1c1917; --muted: #57534e; --rule: #e2e0dc; --wash: #eeecea;
+      --accent: #a63c0a; --accent-ink: #fff8f0;
+      --display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
+      --body: "Public Sans", system-ui, sans-serif;
+      --gutter: clamp(1rem, 4vw, 2.5rem);
+      font: 400 1.0625rem/1.6 var(--body); color: var(--ink); background: var(--paper);
+      accent-color: var(--accent); caret-color: var(--accent);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); }
+    ::selection { background: var(--accent); color: var(--accent-ink); }
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+    a:hover { text-decoration-thickness: 2px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+    h1, h2, h3 { font-family: var(--display); line-height: 1.1; text-wrap: balance; margin: 0; }
+    p, ul, ol, dl { margin: 0; }
+    .wrap { max-width: 72rem; margin: 0 auto; padding: 0 var(--gutter); }
+
+    .skip { position: absolute; left: var(--gutter); top: -4rem; z-index: 2; background: var(--ink); color: var(--paper); padding: .6rem 1rem; }
+    .skip:focus { top: .75rem; }
+
+    .site-header { position: sticky; top: 0; z-index: 1; background: color-mix(in srgb, var(--paper) 94%, transparent); border-bottom: 1px solid var(--rule); }
+    .site-header .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem 1.5rem; min-height: 3.5rem; }
+    .brand { font: 700 1.125rem/1 var(--display); color: var(--ink); text-decoration: none; padding: .75rem 0; }
+    .site-nav ul { display: flex; flex-wrap: wrap; gap: 0 .25rem; list-style: none; padding: 0; margin: 0 -.6rem; }
+    .site-nav a { display: block; padding: .7rem .6rem; color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9375rem; }
+    .site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+
+    .hero { padding: clamp(3rem, 9vw, 7rem) 0 clamp(2.5rem, 6vw, 4.5rem); }
+    .hero h1 { font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.035em; line-height: .95; }
+    .lede { font: 500 clamp(1.25rem, 2.6vw, 1.625rem)/1.3 var(--display); max-width: 34ch; margin-top: 1.25rem; }
+    .summary { max-width: 65ch; margin-top: 1.25rem; color: var(--muted); }
+    .now { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; margin-top: 1.5rem; font-size: .9375rem; }
+    .now strong { color: var(--accent); }
+    .actions { display: flex; flex-wrap: wrap; gap: .75rem; list-style: none; padding: 0; margin-top: 2rem; }
+    .button { display: inline-flex; align-items: center; min-height: 2.875rem; padding: .6rem 1.15rem; border: 1.5px solid var(--ink); border-radius: 999px; color: var(--ink); font-weight: 600; text-decoration: none; transition: background-color .2s cubic-bezier(.16,1,.3,1), color .2s cubic-bezier(.16,1,.3,1); }
+    .button:hover { background: var(--ink); color: var(--paper); }
+    .button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .button.primary:hover { background: var(--ink); border-color: var(--ink); }
+
+    .band { border-top: 1px solid var(--rule); padding: clamp(2.5rem, 6vw, 4.5rem) 0; scroll-margin-top: 3.5rem; }
+    .band .wrap { display: grid; gap: 1.5rem clamp(2rem, 5vw, 4rem); }
+    .band > .wrap > h2, .page-title { font-size: clamp(1.75rem, 3.5vw, 2.25rem); font-weight: 700; letter-spacing: -.02em; }
+    @media (min-width: 52rem) {
+      .band .wrap { grid-template-columns: 14rem minmax(0, 1fr); }
+      .band > .wrap > h2 { position: sticky; top: 5rem; align-self: start; }
+    }
+    .band.contact-band { background: var(--wash); }
+
+    .entries { list-style: none; padding: 0; display: grid; gap: 2.25rem; }
+    .entry { display: grid; gap: .35rem 2rem; }
+    @media (min-width: 40rem) { .entry { grid-template-columns: 9.5rem minmax(0, 1fr); } }
+    .when { font-size: .875rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: .2rem; }
+    .entry h2, .entry h3 { font-size: 1.375rem; font-weight: 700; }
+    .where { color: var(--muted); margin-top: .2rem; }
+    .entry ul { max-width: 65ch; margin-top: .85rem; padding-left: 1.1rem; }
+    .entry li + li { margin-top: .4rem; }
+    .entry li::marker { color: var(--accent); }
+    .links { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin-top: .85rem; font-weight: 600; }
+    .facts { display: grid; gap: .85rem; margin-top: 1rem; max-width: 65ch; }
+    .facts dt { font-size: .8125rem; font-weight: 600; color: var(--muted); }
+    .facts dd { margin: .1rem 0 0; }
+    .empty { color: var(--muted); }
+
+    .skills { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+    .skills h2, .skills h3 { font-size: 1.125rem; font-weight: 700; margin-bottom: .6rem; }
+    .skills ul { list-style: none; padding: 0; }
+    .skills li { padding: .35rem 0; border-bottom: 1px solid var(--rule); }
+
+    .contact-email { font: 700 clamp(1.375rem, 4.2vw, 2.5rem)/1.15 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; }
+    .contact-email a { color: var(--ink); text-decoration-color: var(--accent); text-decoration-thickness: 3px; text-underline-offset: .15em; }
+    .contact-email a:hover { color: var(--accent); }
+    .contact .actions { margin-top: 1.5rem; }
+    .contact > .where { margin-top: 1.5rem; }
+
+    .page { padding: clamp(2.5rem, 7vw, 5rem) 0; }
+    .page .wrap > * + * { margin-top: 2rem; }
+    .back { font-weight: 600; }
+
+    .site-footer { border-top: 1px solid var(--rule); padding: 1.5rem 0 2.5rem; font-size: .9375rem; color: var(--muted); }
+    .site-footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
+    .site-footer ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; list-style: none; padding: 0; }
+    .site-footer a { display: inline-block; padding: .35rem 0; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .hero .wrap > * { animation: rise .7s cubic-bezier(.16,1,.3,1) both; }
+      .hero .wrap > :nth-child(2) { animation-delay: .06s; }
+      .hero .wrap > :nth-child(n+3) { animation-delay: .12s; }
+      @keyframes rise { from { transform: translateY(.75rem); } }
+      html { scroll-behavior: smooth; }
+    }
   </style>
 </head>
 <body>
-<header><a href="/" aria-label="Home"><strong>{{ content.profile.full_name }}</strong></a>
-<nav aria-label="Primary"><a href="/about">About</a><a href="/experience">Experience</a><a href="/projects">Projects</a><a href="/skills">Skills</a><a href="/education">Education</a><a href="/contact">Contact</a></nav></header>
-<main>{% block body %}{% endblock %}</main>
-<footer><p><a href="/resume.pdf">Download resume</a> · © {{ content.profile.full_name }}</p></footer>
+{% set home = "" if section == "home" else "/" %}
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+  <a class="brand" href="/">{{ content.profile.full_name }}</a>
+  <nav class="site-nav" aria-label="Primary"><ul>
+    <li><a href="{{ home }}#experience"{% if section == "experience" %} aria-current="page"{% endif %}>Experience</a></li>
+    {% if content.projects %}<li><a href="{{ home }}#projects"{% if section == "projects" %} aria-current="page"{% endif %}>Projects</a></li>{% endif %}
+    <li><a href="{{ home }}#education"{% if section == "education" %} aria-current="page"{% endif %}>Education</a></li>
+    <li><a href="{{ home }}#skills"{% if section == "skills" %} aria-current="page"{% endif %}>Skills</a></li>
+    <li><a href="{{ home }}#contact"{% if section == "contact" %} aria-current="page"{% endif %}>Contact</a></li>
+  </ul></nav>
+</div></header>
+<main id="main" tabindex="-1">{% block body %}{% endblock %}</main>
+<footer class="site-footer"><div class="wrap">
+  <p>{{ content.profile.full_name }}{% if content.profile.location %} · {{ content.profile.location }}{% endif %}</p>
+  <ul>
+    {% if content.profile.email %}<li><a href="mailto:{{ content.profile.email }}">Email</a></li>{% endif %}
+    {% if content.profile.linkedin_url %}<li><a href="{{ content.profile.linkedin_url }}">LinkedIn</a></li>{% endif %}
+    <li><a href="/resume.pdf">Download résumé (PDF)</a></li>
+  </ul>
+</div></footer>
 </body></html>

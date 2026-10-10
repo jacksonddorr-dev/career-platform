@@ -1,4 +1,42 @@
-{% extends "base.html" %}{% block body %}
-<section class="hero"><p class="muted">Professional profile</p><h1>{{ content.profile.full_name }}</h1><h2>{{ content.profile.headline }}</h2><p>{{ content.profile.summary }}</p><p><a href="/projects">View selected work</a> · <a href="/contact">Get in touch</a></p></section>
-<section><h2>Selected strengths</h2><div class="grid">{% for category in content.skill_categories %}<div><h3>{{ category.name }}</h3><p>{{ category.skills|map(attribute='name')|join(', ') }}</p></div>{% endfor %}</div></section>
+{% extends "base.html" %}{% import "_parts.html" as parts %}{% block body %}
+{% set p = content.profile %}
+<section class="hero" aria-labelledby="name"><div class="wrap">
+  <h1 id="name">{{ p.full_name }}</h1>
+  {% if p.headline %}<p class="lede">{{ p.headline }}</p>{% endif %}
+  {% if p.summary %}<p class="summary">{{ p.summary }}</p>{% endif %}
+  {% set current = content.experience|selectattr("is_current")|first %}
+  {% if current or p.location %}<p class="now">{% if current %}<span>Currently <strong>{{ current.title }}</strong> at {{ current.company_name }}</span>{% endif %}{% if p.location %}<span>{{ p.location }}</span>{% endif %}</p>{% endif %}
+  <ul class="actions">
+    {% if p.email %}<li><a class="button primary" href="mailto:{{ p.email }}">Email {{ p.full_name.split(" ")[0] }}</a></li>{% endif %}
+    <li><a class="button" href="/resume.pdf">Download résumé (PDF)</a></li>
+    {% if p.linkedin_url %}<li><a class="button" href="{{ p.linkedin_url }}">LinkedIn</a></li>{% endif %}
+  </ul>
+</div></section>
+
+<section class="band" id="experience" aria-labelledby="h-experience"><div class="wrap">
+  <h2 id="h-experience">Experience</h2>
+  {{ parts.experience(content.experience) }}
+</div></section>
+
+{% if content.projects %}
+<section class="band" id="projects" aria-labelledby="h-projects"><div class="wrap">
+  <h2 id="h-projects">Projects</h2>
+  {{ parts.projects(content.projects) }}
+</div></section>
+{% endif %}
+
+<section class="band" id="education" aria-labelledby="h-education"><div class="wrap">
+  <h2 id="h-education">Education</h2>
+  {{ parts.education(content.education, content.credentials) }}
+</div></section>
+
+<section class="band" id="skills" aria-labelledby="h-skills"><div class="wrap">
+  <h2 id="h-skills">Skills</h2>
+  {{ parts.skills(content.skill_categories) }}
+</div></section>
+
+<section class="band contact-band" id="contact" aria-labelledby="h-contact"><div class="wrap">
+  <h2 id="h-contact">Contact</h2>
+  {{ parts.contact(p) }}
+</div></section>
 {% endblock %}
