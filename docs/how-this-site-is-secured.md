@@ -26,3 +26,12 @@ Where the encryption starts and ends. Encryption starts in the browser when ngin
 How can anyone check the certificate? They can visit the site and click the Icon to check if it is valid
 
 
+ Evidence: openssl output(run on 10/10/26):
+
+azureuser@vm-career-platform:~$ openssl s_client -connect jacksoncareer.me:443 -servername jacksoncareer.me </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+subject=CN = jacksoncareer.me
+issuer=C = US, O = Let's Encrypt, CN = YE2
+notBefore=Oct  8 01:01:07 2026 GMT
+notAfter=Jan  6 01:01:06 2027 GMT
+
+
