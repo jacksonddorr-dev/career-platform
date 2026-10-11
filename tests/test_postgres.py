@@ -62,3 +62,23 @@ def test_migration_round_trips_on_postgres(pg_url, monkeypatch):
     with create_engine(pg_url).connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM pg_type WHERE typname = 'status'")).scalar() == 0
     command.upgrade(config, "head")
+
+
+@needs_postgres
+def test_copy_into_postgres_resets_id_sequences(pg_url, monkeypatch, tmp_path):
+    from sqlalchemy.orm import Session
+
+    from app.copy_db import copy_database
+    from app.models import Profile, Status
+    from test_copy_db import make_source
+
+    command.upgrade(_alembic(monkeypatch, pg_url), "head")
+    copy_database(make_source(tmp_path / "src.db"), pg_url)
+
+    with Session(create_engine(pg_url)) as db:
+        new = Profile(full_name="Next", headline="x", status=Status.DRAFT)
+        db.add(new)
+        db.commit()
+        assert new.id == 8
+        db.delete(new)
+        db.commit()
