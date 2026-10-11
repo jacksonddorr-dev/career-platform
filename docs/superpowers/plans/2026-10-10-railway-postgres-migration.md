@@ -46,7 +46,9 @@
 
 ### Task 0: Move the Railway DB URL out of `.env.example` [laptop, no commit]
 
-- [ ] **Step 1:** Append the URL to the gitignored `.env` in valid syntax, then restore `.env.example` to HEAD.
+**Result (2026-10-10):** The URL is now in `.env` as `RAILWAY_DATABASE_URL=...` (gitignored), and `.env.example` matches HEAD. Rotating the password is still Jackson's call (Step 2 was not done).
+
+- [x] **Step 1:** Append the URL to the gitignored `.env` in valid syntax, then restore `.env.example` to HEAD.
 
 ```bash
 grep -q '^RAILWAY_DATABASE_URL=' .env || \
@@ -55,9 +57,11 @@ git checkout -- .env.example
 git check-ignore .env && git diff --stat -- .env.example   # .env ignored, no diff
 ```
 
-- [ ] **Step 2 (Jackson decides):** Optionally rotate the Postgres password in Railway. It has never been committed, but it has been in plaintext in a tracked file's working copy.
+- [x] **Step 2 (Jackson decides):** Optionally rotate the Postgres password in Railway. It has never been committed, but it has been in plaintext in a tracked file's working copy.
 
 ### Task 1: Postgres driver + URL normalization
+
+**Result (2026-10-10):** Commit `f5fa2d1`. psycopg 3.3.6 added. I confirmed the `%` test fails without the `env.py` escape. 17 passed.
 
 **Files:**
 - Modify: `pyproject.toml` (dependencies), `uv.lock`
@@ -68,7 +72,7 @@ git check-ignore .env && git diff --stat -- .env.example   # .env ignored, no di
 **Interfaces:**
 - Produces: `app.config.normalize_database_url(url: str) -> str`. `Settings.database_url` is always normalized.
 
-- [ ] **Step 1: Write the failing tests** (append to `tests/test_foundation.py`)
+- [x] **Step 1: Write the failing tests** (append to `tests/test_foundation.py`)
 
 ```python
 import pytest
@@ -112,12 +116,12 @@ def test_alembic_config_accepts_percent_in_password(monkeypatch):
         get_settings.cache_clear()
 ```
 
-- [ ] **Step 2: Run the tests to confirm they fail**
+- [x] **Step 2: Run the tests to confirm they fail**
 
 Run: `uv run pytest tests/test_foundation.py -v`
 Expected: FAIL with `ImportError: cannot import name 'normalize_database_url'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `app/config.py`: add the function and a validator.
 
@@ -147,12 +151,12 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%"
 
 Add the driver: `uv add "psycopg[binary]>=3.2,<4"`. This updates `pyproject.toml` and `uv.lock`.
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `uv run pytest -q`
 Expected: all pass. Then `git checkout -- data/public-profile.json`, because pytest overwrites it (a known issue).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pyproject.toml uv.lock app/config.py alembic/env.py tests/test_foundation.py
@@ -160,6 +164,8 @@ git commit -m "Add psycopg and normalize Postgres URLs for Railway"
 ```
 
 ### Task 2: Make the migration round-trip on Postgres
+
+**Result (2026-10-10):** Commit `0ca8844`. The live Postgres tests were skipped at Jackson's choice. In their place, offline `--sql` tests rendered the Postgres DDL. They showed that upgrade creates `status` exactly once and that downgrade was missing `DROP TYPE`; the second test failed first and passed after the fix. The downgrade uses `op.execute("DROP TYPE IF EXISTS status")` behind a dialect check, instead of `Enum.drop(checkfirst=True)`, which needs a live connection. 19 passed, 1 skipped.
 
 **Files:**
 - Modify: `alembic/versions/0001_initial.py` (`downgrade`)
@@ -169,7 +175,7 @@ git commit -m "Add psycopg and normalize Postgres URLs for Railway"
 - Consumes: `normalize_database_url` (Task 1).
 - Produces: a `pg_url` fixture in `tests/test_postgres.py`. It skips without `TEST_DATABASE_URL`, refuses to touch a DB that has rows, and leaves the DB at `base` (empty) afterwards.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 import os
@@ -216,14 +222,14 @@ def test_migration_round_trips_on_postgres(pg_url, monkeypatch):
     command.upgrade(config, "head")
 ```
 
-- [ ] **Step 2: Run it against the empty Railway Postgres to confirm it fails**
+- [x] **Step 2: Run it against the empty Railway Postgres to confirm it fails**
 
 Run: `TEST_DATABASE_URL="$(grep '^RAILWAY_DATABASE_URL=' .env | cut -d= -f2-)" uv run pytest tests/test_postgres.py -v`
 
 > **Executed 2026-10-10:** Jackson declined running these against the Railway DB, so the live tests are skipped. `TEST_DATABASE_URL` must only ever point at a **scratch** database. The fixture now refuses any database that has been migrated (`alembic_version` set) or has rows, so it can't downgrade production after the first deploy.
 Expected: FAIL. Either the `status` type count is 1, or the second upgrade errors with `type "status" already exists`. If the **first** upgrade fails with "already exists", record that too: the per-table enum creation needs `create_type=False` plus one explicit `status.create(op.get_bind(), checkfirst=True)` at the top of `upgrade()`.
 
-- [ ] **Step 3: Implement** (end of `downgrade()`)
+- [x] **Step 3: Implement** (end of `downgrade()`)
 
 ```python
     sa.Enum(name="status").drop(op.get_bind(), checkfirst=True)
@@ -231,10 +237,10 @@ Expected: FAIL. Either the `status` type count is 1, or the second upgrade error
 
 On SQLite this is a no-op.
 
-- [ ] **Step 4: Rerun Step 2's command, then `uv run pytest -q`**
+- [x] **Step 4: Rerun Step 2's command, then `uv run pytest -q`**
 Expected: PASS, and the full suite passes (with Postgres tests skipped when the env var isn't set). The Railway DB is left empty at `base`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add alembic/versions/0001_initial.py tests/test_postgres.py
@@ -242,6 +248,8 @@ git commit -m "Drop the status enum on downgrade so migrations round-trip on Pos
 ```
 
 ### Task 3: SQLite → Postgres copy script
+
+**Result (2026-10-10):** Commit `e4907ee`. There is no `tests/__init__.py`; the Postgres test imports `from test_copy_db import make_source`. A rehearsal copying the laptop DB into a scratch SQLite file gave 1/1/0/1/3/0/3/10/0/21 rows, matching the VM. The sequence reset hasn't been run on live Postgres; see Task 5 Step 5b. 21 passed, 2 skipped.
 
 **Files:**
 - Create: `app/copy_db.py`
@@ -251,7 +259,7 @@ git commit -m "Drop the status enum on downgrade so migrations round-trip on Pos
 - Consumes: `normalize_database_url`, `Base.metadata` (`app/models.py`), the `pg_url` fixture.
 - Produces: `copy_database(source_url: str, target_url: str) -> dict[str, int]` (rows copied per table). Raises `ValueError` if any target table has rows. CLI: `python -m app.copy_db SOURCE_URL TARGET_URL`.
 
-- [ ] **Step 1: Write the failing tests** (`tests/test_copy_db.py`)
+- [x] **Step 1: Write the failing tests** (`tests/test_copy_db.py`)
 
 ```python
 from datetime import date
@@ -333,12 +341,12 @@ def test_copy_into_postgres_resets_id_sequences(pg_url, monkeypatch, tmp_path):
 
 (For `from tests.test_copy_db import ...` to work, `tests/` needs an `__init__.py`. If it doesn't have one, create an empty one in this step.)
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 Run: `uv run pytest tests/test_copy_db.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.copy_db'`.
 
-- [ ] **Step 3: Implement** `app/copy_db.py`
+- [x] **Step 3: Implement** `app/copy_db.py`
 
 ```python
 """Copy every app row from one database into an empty, migrated one (VM SQLite -> Railway Postgres)."""
@@ -383,10 +391,10 @@ if __name__ == "__main__":
         print(f"{name}: {count}")
 ```
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 `uv run pytest -q` → PASS. Then rerun Task 2 Step 2's command → all Postgres tests PASS, and the DB is left empty.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/copy_db.py tests/test_copy_db.py tests/test_postgres.py tests/__init__.py
@@ -395,12 +403,14 @@ git commit -m "Add one-shot SQLite to Postgres copy that keeps ids and resets se
 
 ### Task 4: Railway build/start config + README
 
+**Result (2026-10-10):** Commit `6c4ce35`, on branch `worktree-railway-migration` and **not pushed**: merging and pushing to `main` is Jackson's call. A local smoke boot of `scripts/start.sh` (scratch SQLite, PORT=8765) returned health `ok` and migrated to `0001_initial`. With `.python-version` set, uv rebuilds the venv on 3.12, so run `uv sync --extra test` before `uv run pytest`. 22 passed, 2 skipped. The final review then added commit `e2fe8f4`: the guard refuses a migrated DB, and the plan gained Step 5b.
+
 **Files:**
 - Create: `railway.json`, `scripts/start.sh`, `.python-version`
 - Modify: `README.md` (Deployment section)
 - Test: `tests/test_foundation.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 import json
@@ -416,9 +426,9 @@ def test_railway_starts_via_script_that_migrates_and_binds_public_port():
     assert '--host 0.0.0.0 --port "${PORT:-8000}"' in script
 ```
 
-- [ ] **Step 2: Run** `uv run pytest tests/test_foundation.py -v` → FAIL (`FileNotFoundError`).
+- [x] **Step 2: Run** `uv run pytest tests/test_foundation.py -v` → FAIL (`FileNotFoundError`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `railway.json`:
 
@@ -450,9 +460,9 @@ exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 2 \
 
 `README.md`: replace the first paragraph of "Deployment and recovery". The new text says production runs on Railway, built from `main` per `railway.json`. `scripts/start.sh` migrates on every boot. `DATABASE_URL` is `${{Postgres.DATABASE_URL}}`. Rollback to the VM is described in `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`.
 
-- [ ] **Step 4: Run** `uv run pytest -q` → PASS, then restore `data/public-profile.json`.
+- [x] **Step 4: Run** `uv run pytest -q` → PASS, then restore `data/public-profile.json`.
 
-- [ ] **Step 5: Commit and push** (pushing `main` is what Railway deploys from, once Task 5 connects it)
+- [x] **Step 5: Commit and push** (pushing `main` is what Railway deploys from, once Task 5 connects it)
 
 ```bash
 git add railway.json scripts/start.sh .python-version README.md tests/test_foundation.py
