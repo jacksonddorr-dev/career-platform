@@ -8,7 +8,7 @@ below use standard Python tooling.
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test]"   # or: uv sync --extra test
 uvicorn app.main:app --reload
 ```
 
@@ -35,12 +35,20 @@ python -m compileall app
 
 ## Deployment and recovery
 
-Set `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and
-`SITE_URL` in the deployment environment. Run `alembic upgrade head` during
-release, then run `python -m app.seed` only for a new empty database. A
-successful public request writes the latest published content to
-`SNAPSHOT_PATH` (default `data/public-profile.json`); preserve that file with
-the deployment artifact or persistent volume.
+Production runs on Railway, built from `main` as configured in `railway.json`
+(Railpack, Python from `.python-version`). `scripts/start.sh` runs
+`alembic upgrade head` on every boot and then starts uvicorn on `$PORT`. Set
+`DATABASE_URL` to `${{Postgres.DATABASE_URL}}`, plus `SESSION_SECRET`,
+`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `APP_ENV=production`, and `SITE_URL`, in the
+service variables. Railway's `postgresql://` URL is converted to the psycopg
+driver automatically. Run `python -m app.seed` only for a new empty database.
+`python -m app.copy_db SOURCE_URL TARGET_URL` copies all rows into an empty,
+migrated database. Rollback to the Azure VM is described in
+`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`.
+
+A successful public request writes the latest published content to
+`SNAPSHOT_PATH` (default `data/public-profile.json`). On Railway that file is
+reset to the committed copy on each deploy.
 
 If the database is unavailable, public pages and the resume use the last
 successful snapshot while admin writes fail closed. Verify `/`, `/resume.pdf`,

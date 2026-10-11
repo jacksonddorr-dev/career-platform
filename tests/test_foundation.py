@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -59,3 +62,12 @@ def test_alembic_config_accepts_percent_in_password(monkeypatch):
         assert config.get_main_option("sqlalchemy.url") == "sqlite:///./pct%25test.db"
     finally:
         get_settings.cache_clear()
+
+
+def test_railway_starts_via_script_that_migrates_and_binds_public_port():
+    config = json.loads(Path("railway.json").read_text())
+    assert config["deploy"]["startCommand"] == "sh scripts/start.sh"
+    assert config["deploy"]["healthcheckPath"] == "/api/v1/health"
+    script = Path("scripts/start.sh").read_text()
+    assert "alembic upgrade head" in script
+    assert '--host 0.0.0.0 --port "${PORT:-8000}"' in script
