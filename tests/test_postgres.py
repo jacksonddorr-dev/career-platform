@@ -38,14 +38,21 @@ def test_postgres_downgrade_drops_status_type(monkeypatch):
     assert sql.index("DROP TABLE profiles") < sql.index("DROP TYPE IF EXISTS status")
 
 
+def _refuse_unless_scratch(conn):
+    tables = inspect(conn).get_table_names()
+    if "alembic_version" in tables and conn.execute(text("SELECT count(*) FROM alembic_version")).scalar():
+        pytest.fail("database is migrated; TEST_DATABASE_URL must point at a scratch database")
+    for table in tables:
+        if conn.execute(text(f'SELECT count(*) FROM "{table}"')).scalar():
+            pytest.fail(f"{table} has rows; refusing to run destructive Postgres tests")
+
+
 @pytest.fixture
 def pg_url(monkeypatch):
     url = normalize_database_url(TEST_URL)
     engine = create_engine(url)
     with engine.connect() as conn:
-        for table in inspect(conn).get_table_names():
-            if table != "alembic_version" and conn.execute(text(f'SELECT count(*) FROM "{table}"')).scalar():
-                pytest.fail(f"{table} has rows; refusing to run destructive Postgres tests")
+        _refuse_unless_scratch(conn)
     config = _alembic(monkeypatch, url)
     command.downgrade(config, "base")
     yield url
@@ -82,3 +89,12 @@ def test_copy_into_postgres_resets_id_sequences(pg_url, monkeypatch, tmp_path):
         assert new.id == 8
         db.delete(new)
         db.commit()
+
+
+def test_destructive_guard_refuses_a_migrated_database(tmp_path, monkeypatch):
+    url = f"sqlite:///{tmp_path / 'live.db'}"
+    command.upgrade(_alembic(monkeypatch, url), "head")
+    get_settings.cache_clear()
+
+    with create_engine(url).connect() as conn, pytest.raises(pytest.fail.Exception, match="migrated"):
+        _refuse_unless_scratch(conn)

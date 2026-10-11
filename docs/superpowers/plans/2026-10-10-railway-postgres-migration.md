@@ -219,6 +219,8 @@ def test_migration_round_trips_on_postgres(pg_url, monkeypatch):
 - [ ] **Step 2: Run it against the empty Railway Postgres to confirm it fails**
 
 Run: `TEST_DATABASE_URL="$(grep '^RAILWAY_DATABASE_URL=' .env | cut -d= -f2-)" uv run pytest tests/test_postgres.py -v`
+
+> **Executed 2026-10-10:** Jackson declined running these against the Railway DB, so the live tests are skipped. `TEST_DATABASE_URL` must only ever point at a **scratch** database. The fixture now refuses any database that has been migrated (`alembic_version` set) or has rows, so it can't downgrade production after the first deploy.
 Expected: FAIL. Either the `status` type count is 1, or the second upgrade errors with `type "status" already exists`. If the **first** upgrade fails with "already exists", record that too: the per-table enum creation needs `create_type=False` plus one explicit `status.create(op.get_bind(), checkfirst=True)` at the top of `upgrade()`.
 
 - [ ] **Step 3: Implement** (end of `downgrade()`)
@@ -488,6 +490,19 @@ uv run python -m app.copy_db "sqlite:///$S/cp-export.db" "$(grep '^RAILWAY_DATAB
 ```
 
 Expected: profiles 1, experiences 3, achievements 10, skill_categories 3, skills 21, education 1, admin_users 1, others 0. These must match *Starting state*. If anything else changed, re-count on the VM first.
+
+- [ ] **Step 5b: Check the id sequences were reset.** `app.copy_db`'s `setval` has never run against live Postgres, because the live tests were skipped. Check it now, before cutover, rather than finding out from a failed admin create:
+
+```bash
+U="$(grep '^RAILWAY_DATABASE_URL=' .env | cut -d= -f2-)" uv run python -c "
+import os; from sqlalchemy import create_engine, text
+e = create_engine(os.environ['U'].replace('postgresql://', 'postgresql+psycopg://', 1))
+with e.connect() as c:
+    for t in ['profiles', 'experiences', 'achievements', 'skill_categories', 'skills', 'education', 'admin_users']:
+        print(t, c.execute(text(f'SELECT max(id) FROM {t}')).scalar(), c.execute(text(f\"SELECT last_value FROM {t}_id_seq\")).scalar())"
+```
+
+Expected: on every line the two numbers are equal (`last_value` = `max(id)`).
 
 - [ ] **Step 6: Parity check.** The resume PDF is generated deterministically from content, so the bytes should be identical:
 
