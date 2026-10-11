@@ -26,3 +26,5 @@ def upgrade():
 def downgrade():
     for table in ("project_highlights", "achievements", "credentials", "education", "skills", "skill_categories", "projects", "experiences", "admin_users", "profiles"):
         op.drop_table(table)
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS status")
