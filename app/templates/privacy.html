@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{# Describes the planned GA4 setup (page views + outbound clicks, tag G-XWCRC21WXW).
+   Deploy this together with the tag, not before. Remove every .todo note once its answer is filled in. #}
+{% block title %}Privacy · {{ content.profile.full_name }}{% endblock %}
+{% block description %}What this site collects about visitors, why, who receives it, and the choices you have.{% endblock %}
+{% block body %}
+{% set p = content.profile %}
+<div class="page"><div class="wrap prose">
+  <h1 class="page-title">Privacy</h1>
+  <p class="where">Last updated <time datetime="2026-10-15">October 15, 2026</time></p>
+
+  <p class="lede">This is a personal career site. It has no accounts, sign-ups or forms. It measures visits with Google Analytics, and the services that run the site see some technical details of each visit.</p>
+
+  <section aria-labelledby="h-analytics">
+    <h2 id="h-analytics">Google Analytics</h2>
+    <p>When a page loads, a script from Google records the visit and sends it to Google. It also records when you click a link that leaves this site, such as the link to LinkedIn.</p>
+    <ul>
+      <li><strong>What is recorded:</strong> the page's address and title, the page you came from, the link you clicked to leave and where it points, the date and time, your browser, device type, operating system, screen size and language, and your approximate location (country, region and city), which Google works out from your IP address.</li>
+      <li><strong>Cookies:</strong> Analytics stores two cookies, <code>_ga</code> and <code>_ga_XWCRC21WXW</code>. They hold a random ID so that a return visit counts as the same visitor. They don't contain your name or email address. They last up to two years unless you delete them.</li>
+      <li><strong>Why:</strong> to see how many people visit, which pages and links get attention, and where visitors come from.</li>
+      <li><strong>Who receives it:</strong> Google. Its servers may be in the United States or other countries. Google says Analytics doesn't store IP addresses. I see reports by page, link, location and device. They aren't tied to your name or email address.</li>
+      <li><strong>How long it's kept:</strong> <mark class="todo">To confirm: the event data retention setting in GA4 (2 or 14 months).</mark></li>
+    </ul>
+    <mark class="todo">To confirm: whether Google signals and the account's data-sharing settings are on. If they are, say here that Google may use this data for its own products and link it to signed-in Google accounts. If they're off, say so.</mark>
+    <mark class="todo">To confirm: GA4 "enhanced measurement" also records scrolls, file downloads (such as the résumé PDF), site search, video plays and form interactions unless turned off. List any that stay on, or turn off all but outbound clicks.</mark>
+  </section>
+
+  <section aria-labelledby="h-hosting">
+    <h2 id="h-hosting">Hosting and server logs</h2>
+    <p>This site runs on <a href="https://railway.com/legal/privacy">Railway</a>. Like most web servers, it writes a log line for each request, with your IP address, the time, the page you asked for and whether it loaded.</p>
+    <ul>
+      <li><strong>Why:</strong> to keep the site running and to find and fix problems.</li>
+      <li><strong>Who receives it:</strong> Railway, and me.</li>
+      <li><strong>How long it's kept:</strong> <mark class="todo">To confirm: log retention on the Railway plan in use.</mark></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-fonts">
+    <h2 id="h-fonts">Fonts</h2>
+    <p>The site's fonts load from Google Fonts. Your browser fetches them from Google's servers, so Google receives your IP address, your browser details and the page that asked for them. Google Fonts doesn't set cookies.</p>
+  </section>
+
+  {% if p.email %}
+  <section aria-labelledby="h-email">
+    <h2 id="h-email">If you email me</h2>
+    <p>Messages to <a href="mailto:{{ p.email }}">{{ p.email }}</a> are stored by my email provider{% if p.email.endswith("@gmail.com") %}, Google (Gmail){% elif p.email.endswith("@jacksoncareer.me") %}, Zoho Mail{% endif %}. I use what you send, including your address, only to reply.</p>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="h-cookie">
+    <h2 id="h-cookie">Other cookies</h2>
+    <p>The only other cookie, named <code>session</code>, is set when I sign in to edit the site. Visitors don't receive it.</p>
+  </section>
+
+  <section aria-labelledby="h-choices">
+    <h2 id="h-choices">Your choices</h2>
+    <p>This site doesn't show a cookie banner or ask for consent. Analytics starts as soon as a page loads. The site doesn't respond to Do Not Track or Global Privacy Control signals.</p>
+    <p>What you can do:</p>
+    <ul>
+      <li><strong>Block Analytics.</strong> Many content blockers, and the tracking protection in some browsers, stop Google Analytics from loading. Google also offers an <a href="https://tools.google.com/dlpage/gaoptout">opt-out browser add-on</a> for desktop browsers. The site works normally either way.</li>
+      <li><strong>Delete or block the cookies.</strong> Deleting <code>_ga</code> and <code>_ga_XWCRC21WXW</code> removes the ID. If you allow cookies again, a later visit gets a new one.</li>
+      <li><strong>Block Google Fonts.</strong> A content blocker can stop the fonts from loading. The site then uses your device's own fonts.</li>
+      {% if p.email %}<li><strong>Ask me.</strong> Questions or requests go to <a href="mailto:{{ p.email }}">{{ p.email }}</a>. Analytics data isn't linked to your name, so I can't find it from your name or email address. If you send me the value of your <code>_ga</code> cookie, I can ask Google to delete the data linked to that ID.</li>{% endif %}
+    </ul>
+    <p>The server log is written for every request, so the only way to avoid it is not to visit.</p>
+  </section>
+
+  <section aria-labelledby="h-changes">
+    <h2 id="h-changes">Changes</h2>
+    <p>If what this site collects changes, I'll update this page and the date at the top.</p>
+  </section>
+
+  <p class="back"><a href="/">See the full profile</a></p>
+</div></div>
+{% endblock %}

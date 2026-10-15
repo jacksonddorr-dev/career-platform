@@ -96,6 +96,16 @@
     .page .wrap > * + * { margin-top: 2rem; }
     .back { font-weight: 600; }
 
+    .prose { max-width: 46rem; }
+    .prose h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
+    .prose h3 { font-size: 1.125rem; font-weight: 700; margin-top: 1.75rem; }
+    .prose section > * + * { margin-top: .85rem; }
+    .prose ul { padding-left: 1.1rem; }
+    .prose li + li { margin-top: .5rem; }
+    .prose li::marker { color: var(--accent); }
+    .prose code { font-size: .9em; background: var(--wash); padding: .05em .3em; border-radius: 3px; }
+    .todo { display: block; background: #fff3c4; color: var(--ink); border-left: 3px solid #b45309; padding: .5rem .75rem; font-size: .9375rem; }
+
     .site-footer { border-top: 1px solid var(--rule); padding: 1.5rem 0 2.5rem; font-size: .9375rem; color: var(--muted); }
     .site-footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
     .site-footer ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; list-style: none; padding: 0; }
@@ -130,6 +140,7 @@
     {% if content.profile.email %}<li><a href="mailto:{{ content.profile.email }}">Email</a></li>{% endif %}
     {% if content.profile.linkedin_url %}<li><a href="{{ content.profile.linkedin_url }}">LinkedIn</a></li>{% endif %}
     <li><a href="/resume.pdf">Download résumé (PDF)</a></li>
+    <li><a href="/privacy">Privacy</a></li>
   </ul>
 </div></footer>
 </body></html>

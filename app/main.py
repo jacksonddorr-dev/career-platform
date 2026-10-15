@@ -41,7 +41,7 @@ def current_content(db: Session) -> tuple[PublicProfile, bool]:
 
 def render(request: Request, db: Session, section: str, title: str, intro: str = ""):
     content, fallback = current_content(db)
-    template = "home.html" if section == "home" else "section.html"
+    template = {"home": "home.html", "privacy": "privacy.html"}.get(section, "section.html")
     return templates.TemplateResponse(request=request, name=template, context={"content": content, "settings": settings,
                                                                                 "section": section, "title": title,
                                                                                 "intro": intro, "fallback": fallback})
@@ -80,6 +80,11 @@ def education(request: Request, db: Session = Depends(get_db)):
 @app.get("/contact", response_class=HTMLResponse)
 def contact(request: Request, db: Session = Depends(get_db)):
     return render(request, db, "contact", "Contact")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy(request: Request, db: Session = Depends(get_db)):
+    return render(request, db, "privacy", "Privacy")
 
 
 @app.get("/resume.pdf")

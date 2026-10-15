@@ -26,3 +26,17 @@ def test_admin_login_allows_authenticated_profile_read(client, admin_user):
     assert login.status_code == 200
     response = client.get("/api/v1/admin/profile")
     assert response.status_code == 200
+
+
+def test_privacy_page_is_linked_from_footer(client):
+    snapshot = {"profile": {"full_name": "Cached Candidate", "headline": "Analytics engineer", "email": "hello@example.com"}, "experience": [], "projects": [], "skill_categories": [], "education": [], "credentials": []}
+    app.state.snapshot_store.save(snapshot)
+
+    with patch("app.main.build_public_profile", return_value=None):
+        home = client.get("/")
+        privacy = client.get("/privacy")
+
+    assert '<a href="/privacy">Privacy</a>' in home.text
+    assert privacy.status_code == 200
+    assert "_ga_XWCRC21WXW" in privacy.text
+    assert "mailto:hello@example.com" in privacy.text
