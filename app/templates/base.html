@@ -109,7 +109,15 @@
     .site-footer { border-top: 1px solid var(--rule); padding: 1.5rem 0 2.5rem; font-size: .9375rem; color: var(--muted); }
     .site-footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
     .site-footer ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; list-style: none; padding: 0; }
-    .site-footer a { display: inline-block; padding: .35rem 0; }
+    .site-footer a, .site-footer .link { display: inline-block; padding: .35rem 0; }
+    .link { font: inherit; color: var(--accent); background: none; border: 0; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em; }
+    .link:hover { text-decoration-thickness: 2px; }
+    [hidden] { display: none !important; }
+
+    .consent { position: fixed; z-index: 3; left: var(--gutter); right: var(--gutter); bottom: 1rem; max-width: 44rem; margin: 0 auto; display: grid; gap: 1rem; padding: 1.1rem 1.25rem; background: var(--paper); border: 1px solid var(--ink); border-radius: 12px; box-shadow: 0 10px 30px rgb(28 25 23 / .18); font-size: .9375rem; }
+    .consent-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+    .consent .button { cursor: pointer; font: 600 .9375rem/1 var(--body); background: var(--paper); }
+    @media (min-width: 40rem) { .consent { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }
 
     @media (prefers-reduced-motion: no-preference) {
       .hero .wrap > * { animation: rise .7s cubic-bezier(.16,1,.3,1) both; }
@@ -141,6 +149,67 @@
     {% if content.profile.linkedin_url %}<li><a href="{{ content.profile.linkedin_url }}">LinkedIn</a></li>{% endif %}
     <li><a href="/resume.pdf">Download résumé (PDF)</a></li>
     <li><a href="/privacy">Privacy</a></li>
+    <li><button type="button" class="link" data-consent-open hidden>Cookie settings</button></li>
   </ul>
 </div></footer>
+<div class="consent" id="consent" role="region" aria-labelledby="consent-title" hidden>
+  <p id="consent-title">This site can use Google Analytics cookies to count visits and link clicks. Nothing is sent to Google Analytics unless you allow it. <a href="/privacy">Privacy</a></p>
+  <div class="consent-actions">
+    <button type="button" class="button" data-consent-allow>Allow analytics</button>
+    <button type="button" class="button" data-consent-decline>Decline</button>
+  </div>
+</div>
+<!-- Google tag (gtag.js) with Consent Mode. gtag.js loads only after the visitor allows analytics. -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('consent', 'default', {analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied'});
+
+  (function () {
+    var ID = 'G-XWCRC21WXW', KEY = 'analytics-consent', started = false;
+    var banner = document.getElementById('consent');
+    function read() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+    function save(value) { try { localStorage.setItem(KEY, value); } catch (e) {} }
+    function start() {
+      if (started) return;
+      started = true;
+      gtag('consent', 'update', {analytics_storage: 'granted'});
+      gtag('js', new Date());
+      gtag('config', ID);
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID;
+      document.head.appendChild(s);
+    }
+    function clearCookies() {
+      var parts = location.hostname.split('.');
+      document.cookie.split(';').forEach(function (c) {
+        var name = c.split('=')[0].trim();
+        if (name !== '_ga' && name.indexOf('_ga_') !== 0) return;
+        for (var i = 0; i < parts.length; i++) {
+          var domain = parts.slice(i).join('.');
+          document.cookie = name + '=; Max-Age=0; path=/; domain=.' + domain;
+        }
+        document.cookie = name + '=; Max-Age=0; path=/';
+      });
+    }
+    function show() { banner.hidden = false; banner.querySelector('button').focus(); }
+
+    banner.querySelector('[data-consent-allow]').addEventListener('click', function () {
+      save('granted'); banner.hidden = true; start();
+    });
+    banner.querySelector('[data-consent-decline]').addEventListener('click', function () {
+      save('denied'); banner.hidden = true; clearCookies();
+      // gtag.js can't be unloaded, so reload the page without it.
+      if (started) location.reload();
+    });
+    var open = document.querySelector('[data-consent-open]');
+    open.hidden = false;
+    open.addEventListener('click', show);
+
+    var choice = read();
+    if (choice === 'granted') start();
+    else if (choice !== 'denied') banner.hidden = false;
+  })();
+</script>
 </body></html>

@@ -9,14 +9,15 @@
   <h1 class="page-title">Privacy</h1>
   <p class="where">Last updated <time datetime="2026-10-15">October 15, 2026</time></p>
 
-  <p class="lede">This is a personal career site. It has no accounts, sign-ups or forms. It measures visits with Google Analytics, and the services that run the site see some technical details of each visit.</p>
+  <p class="lede">This is a personal career site. It has no accounts, sign-ups or forms. If you allow it, it measures visits with Google Analytics. The services that run the site see some technical details of every visit.</p>
 
   <section aria-labelledby="h-analytics">
     <h2 id="h-analytics">Google Analytics</h2>
-    <p>When a page loads, a script from Google records the visit and sends it to Google. It also records when you click a link that leaves this site, such as the link to LinkedIn.</p>
+    <p>Google Analytics runs only if you choose <strong>Allow analytics</strong> on the cookie banner. Until you choose, or if you choose Decline, its script doesn't load and nothing is sent to Google Analytics.</p>
+    <p>Once you allow it, a script from Google records each page you view and sends it to Google. It also records when you click a link that leaves this site, such as the link to LinkedIn.</p>
     <ul>
       <li><strong>What is recorded:</strong> the page's address and title, the page you came from, the link you clicked to leave and where it points, the date and time, your browser, device type, operating system, screen size and language, and your approximate location (country, region and city), which Google works out from your IP address.</li>
-      <li><strong>Cookies:</strong> Analytics stores two cookies, <code>_ga</code> and <code>_ga_XWCRC21WXW</code>. They hold a random ID so that a return visit counts as the same visitor. They don't contain your name or email address. They last up to two years unless you delete them.</li>
+      <li><strong>Cookies:</strong> once you allow it, Analytics stores two cookies, <code>_ga</code> and <code>_ga_XWCRC21WXW</code>. They hold a random ID so that a return visit counts as the same visitor. They don't contain your name or email address. They last up to two years unless you delete them.</li>
       <li><strong>Why:</strong> to see how many people visit, which pages and links get attention, and where visitors come from.</li>
       <li><strong>Who receives it:</strong> Google. Its servers may be in the United States or other countries. Google says Analytics doesn't store IP addresses. I see reports by page, link, location and device. They aren't tied to your name or email address.</li>
       <li><strong>How long it's kept:</strong> <mark class="todo">To confirm: the event data retention setting in GA4 (2 or 14 months).</mark></li>
@@ -48,16 +49,18 @@
   {% endif %}
 
   <section aria-labelledby="h-cookie">
-    <h2 id="h-cookie">Other cookies</h2>
+    <h2 id="h-cookie">Other cookies and storage</h2>
+    <p>Your choice on the cookie banner is saved in your browser's storage for this site, under the name <code>analytics-consent</code>, so the banner doesn't ask again on every page. It stays in your browser and isn't sent to me.</p>
     <p>The only other cookie, named <code>session</code>, is set when I sign in to edit the site. Visitors don't receive it.</p>
   </section>
 
   <section aria-labelledby="h-choices">
     <h2 id="h-choices">Your choices</h2>
-    <p>This site doesn't show a cookie banner or ask for consent. Analytics starts as soon as a page loads. The site doesn't respond to Do Not Track or Global Privacy Control signals.</p>
+    <p>On your first visit, a banner asks whether to allow analytics cookies. Google Analytics loads only if you choose Allow. The site doesn't read Do Not Track or Global Privacy Control signals, so use the banner to decline.</p>
     <p>What you can do:</p>
     <ul>
-      <li><strong>Block Analytics.</strong> Many content blockers, and the tracking protection in some browsers, stop Google Analytics from loading. Google also offers an <a href="https://tools.google.com/dlpage/gaoptout">opt-out browser add-on</a> for desktop browsers. The site works normally either way.</li>
+      <li><strong>Change your choice.</strong> Use <strong>Cookie settings</strong> at the bottom of any page. If you switch to Decline, the site deletes the Analytics cookies and reloads the page without Analytics. If you clear this site's data in your browser, the banner asks again.</li>
+      <li><strong>Block Analytics everywhere.</strong> Many content blockers, and the tracking protection in some browsers, stop Google Analytics from loading. Google also offers an <a href="https://tools.google.com/dlpage/gaoptout">opt-out browser add-on</a> for desktop browsers. The site works normally either way.</li>
       <li><strong>Delete or block the cookies.</strong> Deleting <code>_ga</code> and <code>_ga_XWCRC21WXW</code> removes the ID. If you allow cookies again, a later visit gets a new one.</li>
       <li><strong>Block Google Fonts.</strong> A content blocker can stop the fonts from loading. The site then uses your device's own fonts.</li>
       {% if p.email %}<li><strong>Ask me.</strong> Questions or requests go to <a href="mailto:{{ p.email }}">{{ p.email }}</a>. Analytics data isn't linked to your name, so I can't find it from your name or email address. If you send me the value of your <code>_ga</code> cookie, I can ask Google to delete the data linked to that ID.</li>{% endif %}
