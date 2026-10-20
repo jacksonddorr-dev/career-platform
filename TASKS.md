@@ -1,0 +1,71 @@
+# Project 1 gaps
+
+From the repository audit on 2026-10-20 against the Project 1 requirements. Each line names the file or check that closes it.
+
+## 1. Profile and project data
+
+- [ ] Add a clearly labeled "this website, in progress" project row in Railway Postgres — closes when `/projects` on https://jacksoncareer.me lists it
+- [ ] On DB failure, keep the profile visible, show "Projects temporarily unavailable," and return 503 instead of the snapshot with 200 — `app/main.py` `current_content()`
+- [ ] Stop the committed placeholder snapshot ("Cached Candidate") from being served on Railway — `data/public-profile.json` / `app/snapshot.py`
+- [ ] Replace the snapshot-fallback test with tests for 503 on failure, 200 when healthy, and recovery without restart — `tests/test_web.py`
+- [ ] Record a dated failure → 503 → recovery → 200 check against the deployed app — evidence file linked from `docs/project-1-submission.md`
+- [ ] Explain why SQLite was chosen as the initial engine — `docs/superpowers/specs/2026-09-15-career-platform-design.md` or README decisions section
+
+## 2. Azure deployment
+
+- [ ] Run and record a controlled VM restart (site, DB read, and service up afterward) — `docs/superpowers/plans/2026-10-01-operate-the-vm.md` Result line
+- [ ] Document the Azure HTTPS setup: certbot install, nginx 443 config, NSG 443 rule — Azure plan or `docs/how-this-site-is-secured.md`
+- [ ] Fill in the blank "two locks" and "accept/reject" sections — `docs/evidence/ex03.md`
+- [ ] Confirm the VM is still running and serving — dated `az vm get-instance-view` / `curl http://52.159.85.45/` output
+
+## 3. Domain and HTTPS
+
+- [ ] Make `www` a proxied Cloudflare record with a redirect rule to the bare domain — Cloudflare dashboard
+- [ ] Verify `http://www` and `https://www` both land on `https://jacksoncareer.me` with a valid certificate — dated `curl -I` output in evidence
+- [ ] Fix the README's `www` row, which contradicts the 2026-10-13 DNS snapshot — `README.md` Domains and DNS
+- [ ] Record the final DNS records and their purposes after Zoho and the `www` change — `docs/evidence/` DNS file
+- [ ] Record the Railway certificate's hostname, issuer, validity, and renewal arrangement — `openssl s_client` output in `docs/how-this-site-is-secured.md`
+- [ ] Add real renewal-test output (`certbot renew --dry-run`, `systemctl list-timers`) — `docs/how-this-site-is-secured.md`
+
+## 4. Railway and PostgreSQL migration
+
+- [ ] Add the Railway spec, or explain why the plan stands in for it — `docs/superpowers/specs/`
+- [ ] Commit the uncommitted Task 5 results — `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`
+- [ ] Complete or annotate Task 5 Steps 1–3 and 6 (variables, source, first deploy, page/PDF parity check) — Railway plan
+- [ ] Record the cutover: time (UTC), deployed commit, DNS before and after, post-cutover checks — Railway plan Tasks 6–7 Record section
+- [ ] Make one real change to project data and show it on both source and target, so seed data can't pass as a transfer — Railway plan plus a rendered-page comparison
+- [ ] Compare the rendered pages from source and target — Railway plan Step 6 output
+- [ ] Write the Azure-vs-Railway responsibility comparison (OS, runtime, web entry, TLS, code, config, DB software, data, DNS) — README migration section
+- [ ] Write the rollback procedure, including data written after cutover — README rollback section (commit it)
+
+## 5. Reviewed change through Railway
+
+- [ ] Connect one reviewed commit SHA to its Railway deployment ID and the observed live change — evidence linked from `docs/project-1-submission.md`
+- [ ] Record the diff review and local check done before pushing — the same evidence
+- [ ] Explain how to restore a previous version for code and for database changes — README rollback section
+
+## 6. Zoho email
+
+- [ ] Create the header analysis showing SPF, DKIM, and DMARC results — `docs/evidence/zoho-header-check.md`
+- [ ] Add a line for the message sent before MX existed and what happened to it — `docs/evidence/ex06.md`
+- [ ] Reply from Zoho webmail and confirm Gmail shows the custom sender — `docs/evidence/ex06.md` Replied row
+- [ ] Replace both "_Check Gmail_" cells with confirmed delivery results — `docs/evidence/ex06.md`
+
+## 7. GA4
+
+- [ ] Record the action performed, the event observed (page_view and click), the date, and why the event is useful — `docs/evidence/ex06.md` §3 or README analytics section
+- [ ] Explain the collection path from the browser to GA (consent → gtag → collect) and what Realtime/DebugView showed — README analytics section
+- [ ] Confirm the outbound click relies on enhanced measurement, or add an explicit event — GA admin settings or `app/templates/base.html`
+
+## 8. Engineering record
+
+- [ ] Create the submission index with the repo URL, live URL, final SHA, and links to all evidence — `docs/project-1-submission.md`
+- [ ] Commit the README changes — `README.md`
+- [ ] Put what the site does and its live address at the top — `README.md`
+- [ ] Add Azure and Railway architecture diagrams with locations, protocols, ports, and email and analytics paths — `README.md` or a linked diagrams file
+- [ ] Add at least two decisions with alternatives and reasons (Railway migration, managed vs. self-hosted email) — `README.md`
+- [ ] Add investigated failures, linking `docs/evidence/ex03.md` and `docs/evidence/ex05.md` and labeling ex05 as a deliberate lab — `README.md`
+- [ ] Add remaining limitations — `README.md`
+- [ ] Add a short reflection — `README.md`
+- [ ] Add costs and credits, the Railway trial end date, a service inventory, and cleanup plans — `README.md`
+- [ ] Link the original spec and all plans — `README.md` and `docs/project-1-submission.md`
