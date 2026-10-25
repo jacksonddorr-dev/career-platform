@@ -4,9 +4,10 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 ## 1. Profile and project data
 
-- [ ] Add a clearly labeled "this website, in progress" project row in Railway Postgres — closes when `/projects` on https://jacksoncareer.me lists it
-- [ ] On DB failure, keep the profile visible, show "Projects temporarily unavailable," and return 503 instead of the snapshot with 200 — `app/main.py` `current_content()`
-- [ ] Stop the committed placeholder snapshot ("Cached Candidate") from being served on Railway — `data/public-profile.json` / `app/snapshot.py`
+- [x] Add a clearly labeled "this website, in progress" project row in Railway Postgres — closes when `/projects` on https://jacksoncareer.me lists it
+- [x] On DB failure, keep the profile visible, show "Projects temporarily unavailable," and return 503 instead of the snapshot with 200 — `app/main.py` `current_content()`
+- [x] Stop the committed placeholder snapshot ("Cached Candidate") from being served on Railway — `data/public-profile.json` / `app/snapshot.py`
+
 - [ ] Replace the snapshot-fallback test with tests for 503 on failure, 200 when healthy, and recovery without restart — `tests/test_web.py`
 - [ ] Record a dated failure → 503 → recovery → 200 check against the deployed app — evidence file linked from `docs/project-1-submission.md`
 - [ ] Explain why SQLite was chosen as the initial engine — `docs/superpowers/specs/2026-09-15-career-platform-design.md` or README decisions section
