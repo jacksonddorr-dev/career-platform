@@ -18,7 +18,7 @@
   {{ parts.experience(content.experience) }}
 </div></section>
 
-{% if content.projects %}
+{% if content.projects or content.projects is none %}
 <section class="band" id="projects" aria-labelledby="h-projects"><div class="wrap">
   <h2 id="h-projects">Projects</h2>
   {{ parts.projects(content.projects) }}

@@ -135,13 +135,15 @@
   <a class="brand" href="/">{{ content.profile.full_name }}</a>
   <nav class="site-nav" aria-label="Primary"><ul>
     <li><a href="{{ home }}#experience"{% if section == "experience" %} aria-current="page"{% endif %}>Experience</a></li>
-    {% if content.projects %}<li><a href="{{ home }}#projects"{% if section == "projects" %} aria-current="page"{% endif %}>Projects</a></li>{% endif %}
+    {% if content.projects or content.projects is none %}<li><a href="{{ home }}#projects"{% if section == "projects" %} aria-current="page"{% endif %}>Projects</a></li>{% endif %}
     <li><a href="{{ home }}#education"{% if section == "education" %} aria-current="page"{% endif %}>Education</a></li>
     <li><a href="{{ home }}#skills"{% if section == "skills" %} aria-current="page"{% endif %}>Skills</a></li>
     <li><a href="{{ home }}#contact"{% if section == "contact" %} aria-current="page"{% endif %}>Contact</a></li>
   </ul></nav>
 </div></header>
-<main id="main" tabindex="-1">{% block body %}{% endblock %}</main>
+<main id="main" tabindex="-1">
+{% if content.projects is none and section not in ("home", "projects") %}<div class="wrap"><p class="empty" role="status">Projects temporarily unavailable.</p></div>{% endif %}
+{% block body %}{% endblock %}</main>
 <footer class="site-footer"><div class="wrap">
   <p>{{ content.profile.full_name }}{% if content.profile.location %} · {{ content.profile.location }}{% endif %}</p>
   <ul>

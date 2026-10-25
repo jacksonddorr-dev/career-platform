@@ -25,26 +25,37 @@ app.state.snapshot_store = SnapshotStore()
 
 
 def current_content(db: Session) -> tuple[PublicProfile, bool]:
+    """Return the public content and whether the database read failed.
+
+    On a failed read the last good snapshot keeps the profile visible, but its
+    projects are set to None so the page says they're unavailable instead of
+    showing stale entries.
+    """
     try:
         content = build_public_profile(db)
-        if content:
-            app.state.snapshot_store.save(content)
-            return content, False
     except Exception as exc:
-        logger.warning("public database render failed; using fallback: %s", exc)
+        logger.warning("public database render failed; projects unavailable: %s", exc)
+        cached = app.state.snapshot_store.load()
+        if cached:
+            cached.projects = None
+            return cached, True
+        raise HTTPException(status_code=503, detail="Public profile is not available")
+    if content:
+        app.state.snapshot_store.save(content)
+        return content, False
     cached = app.state.snapshot_store.load()
     if cached:
-        logger.info("public profile served from snapshot fallback")
-        return cached, True
+        logger.info("no published profile; served from snapshot")
+        return cached, False
     raise HTTPException(status_code=503, detail="Public profile is not available")
 
 
 def render(request: Request, db: Session, section: str, title: str, intro: str = ""):
-    content, fallback = current_content(db)
+    content, db_failed = current_content(db)
     template = {"home": "home.html", "privacy": "privacy.html"}.get(section, "section.html")
-    return templates.TemplateResponse(request=request, name=template, context={"content": content, "settings": settings,
-                                                                                "section": section, "title": title,
-                                                                                "intro": intro, "fallback": fallback})
+    return templates.TemplateResponse(request=request, name=template, status_code=503 if db_failed else 200,
+                                      context={"content": content, "settings": settings, "section": section,
+                                               "title": title, "intro": intro})
 
 
 @app.get("/", response_class=HTMLResponse)

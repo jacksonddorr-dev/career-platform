@@ -219,3 +219,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 .worktrees/
+
+# Runtime snapshot of published content, written at boot and on each good page load
+data/public-profile.json

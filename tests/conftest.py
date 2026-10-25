@@ -2,16 +2,25 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.auth import hash_password
 from app.db import get_db
 from app.main import app
 from app.models import Base, AdminUser
+from app.snapshot import SnapshotStore
+
+
+@pytest.fixture(autouse=True)
+def isolated_snapshot(tmp_path, monkeypatch):
+    """Keep tests from overwriting the committed data/public-profile.json."""
+    monkeypatch.setattr(app.state, "snapshot_store", SnapshotStore(str(tmp_path / "public-profile.json")))
 
 
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     try:

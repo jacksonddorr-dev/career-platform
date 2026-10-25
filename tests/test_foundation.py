@@ -71,3 +71,13 @@ def test_railway_starts_via_script_that_migrates_and_binds_public_port():
     script = Path("scripts/start.sh").read_text()
     assert "alembic upgrade head" in script
     assert '--host 0.0.0.0 --port "${PORT:-8000}"' in script
+
+
+def test_start_script_writes_real_snapshot_after_migrating_without_blocking_boot():
+    lines = Path("scripts/start.sh").read_text().splitlines()
+    migrate = next(i for i, line in enumerate(lines) if "alembic upgrade head" in line)
+    snapshot = next(i for i, line in enumerate(lines) if "python -m app.snapshot" in line)
+    server = next(i for i, line in enumerate(lines) if "uvicorn" in line)
+    assert migrate < snapshot < server
+    # start.sh runs under `set -e`, so a failed snapshot must be caught or the app never starts.
+    assert "||" in lines[snapshot]

@@ -28,6 +28,7 @@
 {% endmacro %}
 
 {% macro projects(items, h=3) %}
+{% if items is none %}<p class="empty">Projects temporarily unavailable.</p>{% else %}
 <ol class="entries">
 {% for item in items %}
   <li class="entry">
@@ -42,7 +43,7 @@
 {% else %}
   <li class="empty">No projects are published yet. In the meantime, <a href="/#experience">see experience</a> or <a href="/resume.pdf">download the résumé</a>.</li>
 {% endfor %}
-</ol>
+</ol>{% endif %}
 {% endmacro %}
 
 {% macro education(schools, credentials, h=3) %}
