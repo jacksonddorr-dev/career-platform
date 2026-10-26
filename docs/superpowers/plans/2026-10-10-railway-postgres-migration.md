@@ -509,6 +509,16 @@ Expected: profiles 1, experiences 3, achievements 10, skill_categories 3, skills
 
 **Result (2026-10-11):** Copied from the backup. The copy printed exactly the expected counts. Then each table was compared row by row and column by column, after SQLAlchemy type conversion: VM live, the backup and Railway are **identical in all 10 tables** (1/1/0/1/3/0/3/10/0/21).
 
+**Annotation (2026-10-26, written afterward): why this isn't just re-seeded data.** The brief asks for one real change to the original data, shown on source and target, so that restoring seed data can't pass as a transfer. No change was made specifically for this migration, but an earlier one serves the purpose:
+
+- **Seed data is a fake profile.** `python -m app.seed` creates "Ada Analyst", "Data and analytics engineer" (`app/seed.py:14`).
+- **The source data had been changed away from it.** On 2026-09-30 the seeded content was replaced with my résumé on the laptop and then on the VM (`docs/superpowers/plans/2026-09-24-azure-vm-migration.md`, section 9). The VM's "Ada Analyst" database was backed up first (`~/career_platform.pre-resume.db`). The new one hashed to `928e22dd…`, and the VM's pages then showed "Jackson Dorr" with none of 5 demo strings.
+- **The target matches the changed source, not the seed.** The comparison above found VM live, the backup, and Railway identical in all 10 tables, row by row. The live site's title on 2026-10-26 is "Jackson Dorr · Career Profile", and it doesn't contain "Ada Analyst".
+
+Re-seeding Railway would have produced "Ada Analyst". Railway has content that only existed in the VM's database, so the data was transferred.
+
+**Gaps:** the changed rows are profile, experience, achievements, skills, and education. The `projects` table was empty on both sides at the time, so there's no *project* row in this evidence. The source and target were compared as data, not as rendered pages (Step 6 wasn't run, and the VM was deleted on 2026-10-13). The 09-30 change was made to publish my real résumé, and it's matched to this requirement only afterward.
+
 - [x] **Step 5b: Check the id sequences were reset.** `app.copy_db`'s `setval` has never run against live Postgres, because the live tests were skipped. Check it now, before cutover, rather than finding out from a failed admin create:
 
 ```bash

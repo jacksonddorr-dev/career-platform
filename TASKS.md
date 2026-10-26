@@ -38,8 +38,8 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [x] Commit the uncommitted Task 5 results — `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`
 - [x] Complete or annotate Task 5 Steps 1–3 and 6 (variables, source, first deploy, page/PDF parity check) — Railway plan — annotated 2026-10-26; Step 6 parity was never run and can't be now (VM deleted)
 - [x] Record the cutover: time (UTC), deployed commit, DNS before and after, post-cutover checks — Railway plan Tasks 6–7 Record section — reconstructed 2026-10-26 from the Cloudflare audit log; deployed commit inferred (`7cd922f`); no checks were recorded on the day
-- [ ] Make one real change to project data and show it on both source and target, so seed data can't pass as a transfer — Railway plan plus a rendered-page comparison
-- [ ] Compare the rendered pages from source and target — Railway plan Step 6 output
+- [x] Make one real change to project data and show it on both source and target, so seed data can't pass as a transfer — Railway plan plus a rendered-page comparison — **closed, by existing evidence:** the 2026-09-30 résumé change (replacing seeded "Ada Analyst") is on the VM data and identical on Railway; the gaps (no project row, no page comparison) are in the Railway plan's Step 5 annotation
+- [x] Compare the rendered pages from source and target — Railway plan Step 6 output — **closed, not possible:** never run before the cutover, and the VM was deleted on 2026-10-13; see the Railway plan's Step 6 annotation
 - [ ] Write the Azure-vs-Railway responsibility comparison (OS, runtime, web entry, TLS, code, config, DB software, data, DNS) — README migration section
 - [ ] Write the rollback procedure, including data written after cutover — README rollback section (commit it)
 
