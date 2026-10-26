@@ -90,7 +90,7 @@ Set these on the `career-platform` service under Variables. Never commit them.
 |---|---|
 | `jacksoncareer.me` | Railway, as a custom domain with a Railway-issued certificate |
 | `career-platform-production-1a1e.up.railway.app` | Railway's generated domain |
-| `www.jacksoncareer.me` | Still the Azure VM, until it's added to Railway as a custom domain and its DNS record is switched |
+| `www.jacksoncareer.me` | **Nothing (broken).** Its DNS-only A record still points to `52.159.85.45`, the static IP of the Azure VM deleted on 2026-10-13. Fixing it is the Cloudflare redirect in TASKS.md section 3. |
 
 The domain is registered at Namecheap, and its DNS is hosted on Cloudflare. The
 root domain is a CNAME to the target Railway gives in `railway domain status
@@ -125,9 +125,9 @@ an empty, migrated database, keeps ids, and resets the id sequences. It refuses
 a target that has any rows. Run `python -m app.seed` only for a brand-new empty
 database.
 
-Railway Postgres is now the source of truth. The VM's database no longer gets
-edits, so make admin changes through `https://jacksoncareer.me` and not
-`www.` until `www` moves too.
+Railway Postgres is the only copy of the live data. The Azure VM and its
+SQLite file were deleted on 2026-10-13, as the instructor directed after the
+Railway migration.
 
 ### Snapshot fallback and recovery
 
@@ -158,10 +158,10 @@ To recover:
    to trigger them.
 3. Reload `/` and confirm HTTP 200 with the projects listed.
 
-**Rollback to the Azure VM:** the VM still runs the pre-migration site and data.
-Point the `jacksoncareer.me` DNS record back to `A 52.159.85.45` in Cloudflare.
-Any edits made on Railway since 2026-10-11 would then need to be re-applied on
-the VM. Details are in
-`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`.
+**No Azure rollback anymore.** The migration plan's rollback (point DNS back
+to the VM at `52.159.85.45`) stopped being possible when the VM was deleted on
+2026-10-13. Only the VM's static public IP, NSG, and virtual network remain in
+`rg-career-platform`. A rollback procedure for Railway code and data is still a
+TASKS.md item.
 
 Never log or commit session secrets, administrator passwords, or database URLs.

@@ -286,3 +286,15 @@ Azure checks rules from the lowest priority number up. The first match wins.
 ## Full rollback (reverse order)
 
 `sudo systemctl disable --now career-platform` → `sudo rm /etc/systemd/system/career-platform.service && sudo systemctl daemon-reload` → `cp ~/env.pre-operate ~/career-platform/.env` → start uvicorn by hand (Task 2.1 Step 3 Undo) → restore the nginx default site (Task 1.1 Step 3 Undo) → optionally purge nginx (Task 1.1 Step 1 Undo). The repo, the venv, and the DB are never modified, so rollback can't lose data.
+
+## 5. Decommissioned (added 2026-10-26)
+
+**The VM no longer exists, so no controlled restart was run for Project 1.**
+
+- **What happened:** Azure's activity log shows `vm-career-platform` was deleted on **2026-10-13 at 23:03 UTC** by my account, together with its OS disk (which held `career_platform.db`), its network interface, and its auto-shutdown schedule. I deleted it because the instructor told the class to delete the Azure VM after the Railway migration. The data had already been copied to Railway Postgres on 2026-10-11 and compared table by table (Railway plan, Task 5).
+- **What remains (checked 2026-10-26 with `az resource list -g rg-career-platform`):** the static public IP `vm-career-platform-ip` (`52.159.85.45`), the NSG `vm-career-platform-nsg` (rules for 22 from my laptop, 80 and 443 from any), and the virtual network. `az vm list` returns nothing, and `http://52.159.85.45/` doesn't respond.
+- **Restart evidence that exists from before the deletion** (neither was a deliberate reboot for testing):
+  - **2026-10-01, before systemd:** the VM was stopped and started (booted 19:35 UTC), and uvicorn did *not* come back, because it was started by hand. This is why section 2 adds the service. See `docs/superpowers/plans/2026-09-24-azure-vm-migration.md`, Task 7.1, and commit `6e9cd8e`.
+  - **2026-10-05, after systemd:** the VM had been down from 2026-10-02 02:01 to 2026-10-05 20:04 UTC. It booted at 20:04:25, and `career-platform` was active at 20:04:34 with `NRestarts=0` and nginx up, with nobody starting it by hand. Section 3, Task 3.1 Result, then ran all 10 checks: the site, the real database, and the service passed.
+- **Not verified:** a controlled, deliberate VM restart with checks immediately before and after. It can't be run now.
+

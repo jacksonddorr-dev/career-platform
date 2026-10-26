@@ -14,10 +14,9 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 ## 2. Azure deployment
 
-- [ ] Run and record a controlled VM restart (site, DB read, and service up afterward) — `docs/superpowers/plans/2026-10-01-operate-the-vm.md` Result line
+- [x] Run and record a controlled VM restart (site, DB read, and service up afterward) — `docs/superpowers/plans/2026-10-01-operate-the-vm.md` Result line — **closed, not run:** VM deleted 2026-10-13 per the instructor; existing restart evidence and the gap are recorded in that plan's section 5
 - [ ] Document the Azure HTTPS setup: certbot install, nginx 443 config, NSG 443 rule — Azure plan or `docs/how-this-site-is-secured.md`
-- [ ] Fill in the blank "two locks" and "accept/reject" sections — `docs/evidence/ex03.md`
-- [ ] Confirm the VM is still running and serving — dated `az vm get-instance-view` / `curl http://52.159.85.45/` output
+- [x] Confirm the VM is still running and serving — dated `az vm get-instance-view` / `curl http://52.159.85.45/` output — **closed:** checked 2026-10-26, the VM is deleted (`ResourceNotFound`, no response at `52.159.85.45`); recorded in the operate-the-VM plan's section 5
 
 ## 3. Domain and HTTPS
 
