@@ -54,3 +54,53 @@ Everything above is my Exercise 4 write-up and is unchanged. This addendum recor
 | Renewal timer and dry run | **Not recorded, no longer verifiable.** The section above describes the twice-daily timer, but no `systemctl list-timers` or `certbot renew --dry-run` output was saved. | — |
 
 **Order of events (inferred from the timestamps, not observed directly):** the certificate was issued at 01:01 UTC, about 33 minutes *before* port 443 was opened at 01:34 UTC. That fits Let's Encrypt's HTTP-01 challenge, which proves control of the domain over port 80, already open, so 443 only had to be opened afterward to serve the site over HTTPS.
+
+---
+
+## Addendum: Railway certificate (recorded 2026-10-26)
+
+Since the cutover, `https://jacksoncareer.me` is served by Railway, not by nginx on the VM. This records the certificate the site uses now. The `www` name has a separate Cloudflare certificate, covered in `docs/evidence/www-redirect.md`.
+
+**Evidence: openssl output (run 2026-10-26 00:54 UTC from my laptop):**
+
+```
+$ openssl s_client -connect jacksoncareer.me:443 -servername jacksoncareer.me </dev/null 2>/dev/null \
+    | openssl x509 -noout -subject -issuer -dates -serial -ext subjectAltName -text
+subject=CN=jacksoncareer.me
+issuer=C=US, O=Let's Encrypt, CN=YE1
+notBefore=Oct 11 01:07:07 2026 GMT
+notAfter=Jan  9 01:07:06 2027 GMT
+serial=068C82F5E88325AEE34899446B928B597C83
+    DNS:jacksoncareer.me
+            Public Key Algorithm: id-ecPublicKey
+                NIST CURVE: P-256
+
+Certificate chain
+ 0 s:CN=jacksoncareer.me
+   i:C=US, O=Let's Encrypt, CN=YE1
+ 1 s:C=US, O=Let's Encrypt, CN=YE1
+   i:C=US, O=ISRG, CN=Root YE
+ 2 s:C=US, O=ISRG, CN=Root YE
+   i:C=US, O=Internet Security Research Group, CN=ISRG Root X2
+ 3 s:C=US, O=Internet Security Research Group, CN=ISRG Root X2
+   i:C=US, O=Internet Security Research Group, CN=ISRG Root X1
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Verify return code: 0 (ok)
+```
+
+| Question | Answer |
+|---|---|
+| Hostname | `jacksoncareer.me` only (subject and the single SAN entry). It doesn't cover `www`, which is why `www` is handled by Cloudflare's redirect instead. |
+| Issuer | Let's Encrypt `YE1`, chaining to ISRG roots. `Verify return code: 0 (ok)` means my laptop trusts the chain. |
+| Validity | 2026-10-11 01:07:07 to 2027-01-09 01:07:06 GMT (90 days). It was issued right after the custom domain was added on Railway during the cutover. |
+| Key | ECDSA P-256 |
+| Who renews it | Railway. Its docs say it issues Let's Encrypt certificates with ECDSA keys for custom domains, "valid for 90 days and automatically renewed when 30 days of validity remain" (https://docs.railway.com/networking/domains/working-with-domains, read 2026-10-26). For this certificate that's around **2026-12-10**. I can't run a renewal test on Railway. The check is to rerun the openssl command after 2026-12-10 and expect a new `notBefore` date. |
+| What renewal depends on | The root record staying **DNS only** and pointing at Railway, plus the `_railway-verify` TXT record. Railway's docs warn it may not be able to issue a certificate for a proxied (orange-cloud) domain. |
+| Where encryption ends | At Railway's edge. Railway forwards plain HTTP to the app on port 8080, which is why `scripts/start.sh` runs uvicorn with `--proxy-headers`. On Azure it ended at nginx on the VM. |
+
+**Hostname selection (SNI):** Railway's edge serves many sites on the same address, and picks the certificate by the name the browser sends. Asking the same address for a different name returns Railway's shared certificate instead:
+
+```
+$ openssl s_client -connect jacksoncareer.me:443 -servername wrong.example | openssl x509 -noout -subject
+subject=CN=*.up.railway.app
+```
