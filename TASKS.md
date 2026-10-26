@@ -25,7 +25,7 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [x] Fix the README's `www` row, which contradicts the 2026-10-13 DNS snapshot — `README.md` Domains and DNS
 - [x] Record the final DNS records and their purposes after Zoho and the `www` change — `docs/evidence/` DNS file — `docs/evidence/dns-final.md`
 - [x] Record the Railway certificate's hostname, issuer, validity, and renewal arrangement — `openssl s_client` output in `docs/how-this-site-is-secured.md`
-- [ ] Add real renewal-test output (`certbot renew --dry-run`, `systemctl list-timers`) — `docs/how-this-site-is-secured.md`
+- [x] Add real renewal-test output (`certbot renew --dry-run`, `systemctl list-timers`) — `docs/how-this-site-is-secured.md` — **closed, not possible:** those commands ran on the Azure VM, deleted 2026-10-13, and their output was never saved; the current arrangement (Railway renews at 30 days left, about 2026-12-10) and how to check it are in that file's Railway certificate addendum
 
 ## 4. Railway and PostgreSQL migration
 
