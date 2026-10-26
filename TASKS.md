@@ -8,7 +8,7 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [x] On DB failure, keep the profile visible, show "Projects temporarily unavailable," and return 503 instead of the snapshot with 200 — `app/main.py` `current_content()`
 - [x] Stop the committed placeholder snapshot ("Cached Candidate") from being served on Railway — `data/public-profile.json` / `app/snapshot.py`
 
-- [ ] Replace the snapshot-fallback test with tests for 503 on failure, 200 when healthy, and recovery without restart — `tests/test_web.py`
+- [x] Replace the snapshot-fallback test with tests for 503 on failure, 200 when healthy, and recovery without restart — `tests/test_web.py`
 - [ ] Record a dated failure → 503 → recovery → 200 check against the deployed app — evidence file linked from `docs/project-1-submission.md`
 - [ ] Explain why SQLite was chosen as the initial engine — `docs/superpowers/specs/2026-09-15-career-platform-design.md` or README decisions section
 
@@ -70,3 +70,57 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [ ] Add a short reflection — `README.md`
 - [ ] Add costs and credits, the Railway trial end date, a service inventory, and cleanup plans — `README.md`
 - [ ] Link the original spec and all plans — `README.md` and `docs/project-1-submission.md`
+
+---
+
+## Record: live database failure → 503 → recovery → 200 (2026-10-26 UTC)
+
+Evidence for the section 1 item "Record a dated failure → 503 → recovery → 200 check". It lives here until `docs/project-1-submission.md` exists, which should then link to this section. Times are UTC on 2026-10-26 (the evening of 2026-10-25 in PDT).
+
+**Setup**
+- Deployed app: Railway deployment `79ca6fd3` (commit `61ad97c`), which includes the 503 change from `4afc2ee`. Its boot log shows `Wrote data/public-profile.json`, so the snapshot came from the real database.
+- Failure: I restarted only the Postgres service with `railway restart -s Postgres -y` (run by me at the Claude Code prompt). The app kept running.
+- Probe: a Python script (kept outside the repo) requested `https://jacksoncareer.me/` about 10 times a second and `/api/v1/health` once a second, from 00:15:16 to 00:19:16. For each response it recorded the send time, the status, whether "Projects temporarily unavailable" was on the page, and whether "This Website (In Progress)" was listed.
+
+**Postgres log**
+
+```
+00:15:39.634  LOG:  shutting down
+00:15:39.674  LOG:  database system is shut down
+00:15:40.924  LOG:  database system is ready to accept connections
+```
+
+**Probe results (sorted by send time, around the outage)**
+
+| Send time | Path | Status | Notice shown | Project listed |
+|---|---|---|---|---|
+| 00:15:39.427 | `/` | 200 | no | yes |
+| 00:15:39.533 | `/` | **503** | yes | no |
+| 00:15:39.638 | `/` | **503** | yes | no |
+| 00:15:39.742 | `/` | **503** | yes | no |
+| 00:15:39.847 | `/` | 200 | no | yes |
+| 00:15:39.953 | `/` | **503** | yes | no |
+| 00:15:40.054 | `/api/v1/health` | 200 | — | — |
+| 00:15:40.156 – 00:15:40.782 | `/` | **503** ×7 | yes | no |
+| 00:15:40.884 | `/` | 200 | no | yes |
+| 00:15:41.091 | `/api/v1/health` | 200 | — | — |
+
+Totals for the whole run: `/` returned 200 with the project listed 2,055 times and 503 with the notice 11 times; `/api/v1/health` returned 200 all 230 times. No request errored or timed out.
+
+**App log:** 11 lines of `public database render failed; projects unavailable: (psycopg.OperationalError) connection failed: … server closed the connection unexpectedly`, one per 503.
+
+**After:** `railway deployment list` still showed `79ca6fd3` as the app's deployment, so recovery needed no app restart or redeploy.
+
+**What this shows**
+- During the outage, every public request that failed its database read returned 503, showed "Projects temporarily unavailable", and listed no projects.
+- The first request after Postgres was ready returned 200 with the project back.
+- The health check doesn't use the database, so a 503 on `/` while health stays 200 points at the database, not the app.
+
+**Limits**
+- The 200 sent at 00:15:39.847, mid-outage, is unexplained. A likely cause is a request answered by one of the 2 workers over a connection that hadn't closed yet. Not verified.
+- The probe didn't check for my name on the 503 pages. The notice is rendered inside the page template, so the page and profile rendered, but profile visibility during a failure is verified by the tests in `tests/test_web.py`, not by this run.
+- A first attempt at 00:02:36 (Postgres down about one second) happened after a slower probe had stopped, so it captured no 503. It isn't counted here.
+
+**In my own words:**
+
+&nbsp;
