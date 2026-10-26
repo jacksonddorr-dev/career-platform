@@ -23,7 +23,7 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [x] Make `www` a proxied Cloudflare record with a redirect rule to the bare domain — Cloudflare dashboard — done 2026-10-26 with the `cf` CLI; `docs/evidence/www-redirect.md`
 - [x] Verify `http://www` and `https://www` both land on `https://jacksoncareer.me` with a valid certificate — dated `curl -I` output in evidence — `docs/evidence/www-redirect.md`
 - [x] Fix the README's `www` row, which contradicts the 2026-10-13 DNS snapshot — `README.md` Domains and DNS
-- [ ] Record the final DNS records and their purposes after Zoho and the `www` change — `docs/evidence/` DNS file
+- [x] Record the final DNS records and their purposes after Zoho and the `www` change — `docs/evidence/` DNS file — `docs/evidence/dns-final.md`
 - [ ] Record the Railway certificate's hostname, issuer, validity, and renewal arrangement — `openssl s_client` output in `docs/how-this-site-is-secured.md`
 - [ ] Add real renewal-test output (`certbot renew --dry-run`, `systemctl list-timers`) — `docs/how-this-site-is-secured.md`
 
