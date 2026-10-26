@@ -472,19 +472,23 @@ git push origin main
 
 ### Task 5: Configure Railway, deploy, copy the data [Jackson in dashboard + laptop]
 
-- [ ] **Step 1 [Jackson]: Set the `web` service variables**
+- [x] **Step 1 [Jackson]: Set the `web` service variables** *(the service is named `career-platform`)*
   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
   - `SESSION_SECRET` = a new value from `python -c "import secrets; print(secrets.token_urlsafe(48))"`
   - `ADMIN_USERNAME` = same as the VM
   - `ADMIN_PASSWORD` = any strong value. It's only used by `app.seed`, which isn't run, because the admin user and hash are copied over.
   - `APP_ENV=production`
   - `SITE_URL=https://jacksoncareer.me`
-- [ ] **Step 2 [Jackson]:** Settings → Source: connect `jacksonddorr-dev/career-platform`, branch `main`. Then Networking → Generate Domain (`<RAILWAY_DOMAIN>`).
-- [ ] **Step 3: Verify the first deploy** (laptop)
+  - **Annotation (2026-10-26, written afterward): only partly done until 2026-10-26.** A name-only listing (`railway variables -s career-platform --kv`, values not read) showed that `DATABASE_URL` was the only app variable set. Without `SESSION_SECRET` the app used the public default `change-me-in-production` from `app/config.py`, so anyone reading the repo could have signed an admin session cookie. Without `SITE_URL`, every page's `canonical` link pointed to `http://127.0.0.1:8000`. I don't know whether anyone used the default secret; the app keeps no record of admin logins.
+  - **Fix (2026-10-26, ~01:57 UTC):** I set `SITE_URL=https://jacksoncareer.me`, `APP_ENV=production`, and a new 64-character `SESSION_SECRET` piped in through `--stdin`, so the value was never printed. Deployment `6c1e4147` came up SUCCESS with `Wrote data/public-profile.json`. Checks: `/`, `/about`, `/projects`, `/api/v1/health` → 200; `/about` canonical → `https://jacksoncareer.me/about`; a cookie signed with the old default for the username `admin` → 401 on `/admin`. `ADMIN_USERNAME` and `ADMIN_PASSWORD` stay unset on purpose: only `app.seed` reads them, and it isn't run.
+- [x] **Step 2 [Jackson]:** Settings → Source: connect `jacksonddorr-dev/career-platform`, branch `main`. Then Networking → Generate Domain (`<RAILWAY_DOMAIN>`).
+  - **Annotation (2026-10-26, written afterward):** Done, but the date isn't recorded. Every deployment Railway still lists (the oldest is 2026-10-19) shows repo `jacksonddorr-dev/career-platform`, branch `main`, and reason `deploy` for pushes. `railway domain list` shows the generated domain `career-platform-production-1a1e.up.railway.app` and the custom domain `jacksoncareer.me`, both on port 8080. Railway only lists the last 20 deployments, so the first connection and the first deploy are no longer visible.
+- [x] **Step 3: Verify the first deploy** (laptop) *(partly; see annotation)*
   - `curl -s https://<RAILWAY_DOMAIN>/api/v1/health` returns `{"status":"ok",...}`
   - Alembic logs nothing (`alembic.ini` has no logging section), so confirm the migration from the laptop instead: `uv run python -c "import os; from sqlalchemy import create_engine, text; print(create_engine(os.environ['U'].replace('postgresql://','postgresql+psycopg://',1)).connect().execute(text('select version_num from alembic_version')).all())"` with `U` set to the `RAILWAY_DATABASE_URL` from `.env`. Expect `[('0001_initial',)]`.
   - `/` returns 200 and is served from the committed snapshot, since the DB is still empty.
   - **Found (2026-10-11 ~00:45 UTC, read-only check):** Railway Postgres was already at `0001_initial`, with all 10 tables empty. Nothing in this session migrated it. Either the `web` service is already connected and the push of `7cd922f` deployed it, or it was migrated by hand. Not yet confirmed in the Railway dashboard.
+  - **Annotation (2026-10-26, written afterward):** Only the migration check was recorded, in the *Found* line above: Postgres was at `0001_initial` with empty tables before the copy. The health and `/` checks on the generated domain weren't recorded at the time, and the first deploy's logs are no longer listed. The same checks pass on the current deployment (see the 2026-10-26 checks in Step 1).
 - [x] **Step 4: Freeze edits and pull the VM DB.** Make no admin edits until Task 6 is done. Use SQLite's online backup rather than `scp` of the live file:
   - **Result (2026-10-11):** I made an online backup on the VM at `~/backups/career_platform-20261011T002635Z.db` (sha256 `1520f2f1…0177d49e`, integrity `ok`, counts equal to live). It was copied to the laptop with a matching hash. For the comparison, I also pulled a fresh online snapshot of the live DB; the temp file on the VM was removed.
 
@@ -520,7 +524,7 @@ Expected: on every line the two numbers are equal (`last_value` = `max(id)`).
 
 **Result (2026-10-11):** All 10 sequences are correct: the next id is `max(id)+1`, and 1 for the empty tables. This confirms that `setval` works on live Postgres.
 
-- [ ] **Step 6: Parity check.** The resume PDF is generated deterministically from content, so the bytes should be identical:
+- [ ] **Step 6: Parity check.** *(not run; see annotation below)* The resume PDF is generated deterministically from content, so the bytes should be identical:
 
 ```bash
 curl -s https://jacksoncareer.me/resume.pdf -o "$S/vm.pdf"
@@ -532,6 +536,8 @@ done
 ```
 
 Expected: `IDENTICAL` and every page `same`. Then log in as admin on `<RAILWAY_DOMAIN>` with the existing password. This proves the copied hash works.
+
+**Annotation (2026-10-26, written afterward): not run, and it can't be run now.** No page or PDF comparison between the VM and Railway was recorded before the DNS cutover. The VM was deleted on 2026-10-13 (`docs/superpowers/plans/2026-10-01-operate-the-vm.md`, section 5), so there's no source left to compare against. What exists instead is the data-level comparison in Step 5: VM live, the backup, and Railway identical in all 10 tables, row by row and column by column. Since the pages and the PDF are generated from that data by the same code, identical data should give identical pages, but that's an inference, not a recorded check.
 
 ### Task 6: Cut DNS over to Railway [Jackson]
 
