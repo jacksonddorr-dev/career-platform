@@ -68,6 +68,3 @@ If this change had been bad, the steps are in the README's "Rolling back a bad c
 - The change has no database migration and writes no data, so no data rollback would be needed.
 - Rolling back brings back the old behavior, including the committed placeholder snapshot: the revert restores `data/public-profile.json`, and the previous deployment's image still contains it. During an outage the site would again show "Cached Candidate" with 200 until a page load refreshed the snapshot.
 
-**In my own words:**
-
-&nbsp;
