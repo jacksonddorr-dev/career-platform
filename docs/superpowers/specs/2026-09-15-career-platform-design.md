@@ -393,6 +393,30 @@ The recommended implementation for the first version is intentionally lean but s
 
 This stack provides clean structure, type-safe data access, and future extension without overbuilding the first release.
 
+### 12.1 Initial database engine: SQLite (addendum)
+
+> **Written 2026-10-26, after the build.** The original spec above named only "PostgreSQL or equivalent relational database." SQLite was first set as the default in the implementation commit `9ae1ef9` (2026-09-17), in `app/config.py` and `.env.example`. This section records why it fit, instead of presenting it as a decision made during design.
+
+**Why SQLite for the first version**
+
+- **No database server to run.** The whole database is one file (`career_platform.db`) opened by the app. Codespaces, the laptop, and the Azure VM needed no extra service, port, or credentials for it.
+- **It fits the workload.** One admin writes occasionally and visitors only read. SQLite's single-writer limit doesn't matter at that scale.
+- **It keeps the Azure step simple.** On the VM the app reads the file on local disk, so the database never needs a network listener, and Nginx stays the only public entry point.
+- **Easy to copy and back up.** Moving the data to the VM (2026-09-29) and taking the pre-migration backup (2026-10-11) were file copies checked by hash, using SQLite's online backup for the live file.
+- **Changing engines later stays cheap.** The app reaches the database only through SQLAlchemy with one `DATABASE_URL` setting, and Alembic manages the schema, so a later move to PostgreSQL is mostly configuration plus a data copy.
+
+**Alternatives considered**
+
+- **PostgreSQL from the start.** It's the engine the spec suggested and the one the site uses now, but on day one it would have meant installing, securing, and running a second service on the VM for a single-user site.
+- **MySQL**, as run in the Codespace in Exercise 02. It has the same extra-server cost and no advantage here.
+
+**What the choice cost later**
+
+- Railway's container filesystem is reset on every deploy, so a file database can't hold data there. The Railway migration moved the data to Railway-managed PostgreSQL (`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`).
+- The move surfaced engine differences: Postgres needs a psycopg driver URL, keeps the `status` enum as a named type that the downgrade must drop, and needs its id sequences reset after rows are copied with their original ids. Commits `f5fa2d1`, `0ca8844`, and `e4907ee` handle these.
+
+**Departure from section 6.6:** that section says the fallback should keep showing projects. The course requirement for this project says a database failure must show "Projects temporarily unavailable" and return 503 instead, so the build hides snapshot projects during an outage (commit `4afc2ee`).
+
 ## 13. Non-Functional Requirements
 
 ### Security
