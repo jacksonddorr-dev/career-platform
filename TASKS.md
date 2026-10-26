@@ -45,9 +45,9 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 ## 5. Reviewed change through Railway
 
-- [ ] Connect one reviewed commit SHA to its Railway deployment ID and the observed live change — evidence linked from `docs/project-1-submission.md`
-- [ ] Record the diff review and local check done before pushing — the same evidence
-- [ ] Explain how to restore a previous version for code and for database changes — README rollback section
+- [x] Connect one reviewed commit SHA to its Railway deployment ID and the observed live change — evidence linked from `docs/project-1-submission.md` — `docs/evidence/reviewed-change.md` (`4afc2ee` → deployment `79ca6fd3` → live 503 check)
+- [x] Record the diff review and local check done before pushing — the same evidence
+- [x] Explain how to restore a previous version for code and for database changes — README rollback section — README "Rolling back a bad change" (data steps untested)
 
 ## 6. Zoho email
 
