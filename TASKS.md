@@ -29,7 +29,16 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 ## 4. Railway and PostgreSQL migration
 
-- [ ] Add the Railway spec, or explain why the plan stands in for it — `docs/superpowers/specs/`
+- [x] Add the Railway spec, or explain why the plan stands in for it — `docs/superpowers/specs/`
+
+  **Why the plan stands in for a spec (written 2026-10-26, after the migration).** No separate Railway spec was written during the lesson. `docs/superpowers/specs/` holds only the original 2026-09-15 design spec, and the plan says so itself: "No separate spec doc. This plan comes from the 2026-10-10 inspection recorded under *Starting state*." The spec content lives in `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`:
+  - **Goal and Architecture:** what the target is and what changes.
+  - **Starting state:** the inventory of code (VM at `94463c0`), runtime (Python 3.12.3), packages (no Postgres driver yet), configuration and secrets, schema (the `status` enum), and current data (row counts).
+  - **Global Constraints:** secret handling and keeping the VM as the rollback.
+  - **Review Focus:** five failure modes, each with its expected behavior and the test that checks it.
+
+  The plan was committed in `6c4ce35`, `e2fe8f4`, and `7cd922f` (2026-10-11 00:17–00:21 UTC). That's before the VM database backup (00:26 UTC), the data copy, and the DNS cutover, so it was written before the working deployment changed.
+
 - [ ] Commit the uncommitted Task 5 results — `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`
 - [ ] Complete or annotate Task 5 Steps 1–3 and 6 (variables, source, first deploy, page/PDF parity check) — Railway plan
 - [ ] Record the cutover: time (UTC), deployed commit, DNS before and after, post-cutover checks — Railway plan Tasks 6–7 Record section
