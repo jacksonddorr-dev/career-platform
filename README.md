@@ -160,11 +160,55 @@ To recover:
    to trigger them.
 3. Reload `/` and confirm HTTP 200 with the projects listed.
 
+### Rolling back a bad change
+
+Written 2026-10-26. The code steps use standard Git and Railway features. The
+**data steps are untested**: no backup has been taken or restored yet.
+
 **No Azure rollback anymore.** The migration plan's rollback (point DNS back
-to the VM at `52.159.85.45`) stopped being possible when the VM was deleted on
-2026-10-13. Only the VM's static public IP, NSG, and virtual network remain in
-`rg-career-platform`. A rollback procedure for Railway code and data is still a
-TASKS.md item.
+to the VM at `52.159.85.45`) held until the VM was deleted on 2026-10-13 at
+23:03 UTC. Since then Railway is the only place the site runs.
+
+**Code**
+
+1. **Normal path:** `git revert <bad-sha>`, then `git push origin main`. Railway
+   rebuilds and deploys the revert like any other push. Check:
+   - `railway deployment list` shows the new deployment as `SUCCESS`
+   - the deploy log has `Wrote data/public-profile.json`
+   - `/`, `/projects` and `/api/v1/health` return 200
+2. **Emergency path:** in the Railway dashboard, open **Deployments**, choose
+   the last good deployment, then **Rollback**. That redeploys the old image
+   without a build. `main` still holds the bad commit, so the next push would
+   bring it back: follow up with step 1.
+3. **If the bad change included a migration:** `scripts/start.sh` runs
+   `alembic upgrade head` on every boot, so rolling back code alone leaves the
+   newer schema in place. Run `alembic downgrade <previous revision>` against
+   production first, then roll back the code. That needs access to the
+   database from inside Railway, which isn't set up yet (Postgres has no
+   public proxy). Only one migration exists so far (`0001_initial`), and its
+   downgrade has been tested on Postgres (commit `0ca8844`).
+
+**Data**
+
+Rolling data back needs a copy from before the change. **Right now there is
+none: Railway Postgres is the only copy of the site's data.** Railway's
+dashboard may offer volume backups; whether this plan includes them hasn't
+been checked.
+
+1. **Before any risky data or schema change**, take a dump and keep it
+   outside Railway (not in Git: it contains the admin password hash), for
+   example `pg_dump --format=custom` run from inside Railway's network.
+2. **Freeze admin edits** until the change is verified, so nothing is written
+   that a restore would lose.
+3. **To roll back**, restore the dump into the production database
+   (`pg_restore --clean`) and reload `/` to confirm the content.
+4. **Data written after the dump** is lost by the restore. The site has one
+   admin (me), so the fix is to re-enter those edits by hand through the
+   admin API, from my own record of what I changed. If edits weren't frozen,
+   compare a fresh dump of the bad state with the backup first to list them.
+
+For an outage rather than a bad change, the database recovers on its own: see
+*Snapshot fallback and recovery* above.
 
 Never log or commit session secrets, administrator passwords, or database URLs.
 
