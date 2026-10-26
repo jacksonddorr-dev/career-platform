@@ -541,9 +541,11 @@ Expected: `IDENTICAL` and every page `same`. Then log in as admin on `<RAILWAY_D
 
 ### Task 6: Cut DNS over to Railway [Jackson]
 
-- [ ] **Step 1:** Railway `web` → Networking → Custom Domain: add `jacksoncareer.me` and `www.jacksoncareer.me`. Note the records Railway shows (a CNAME target, plus a TXT verification record if it asks for one).
-- [ ] **Step 2:** At the DNS provider, replace the `A 52.159.85.45` records with Railway's records. The apex needs CNAME flattening or ALIAS support. If the registrar can't do that, move DNS to a provider that can, such as Cloudflare, before continuing.
-- [ ] **Step 3: Verify** (laptop) after Railway shows the certificate as issued:
+- [x] **Step 1:** Railway `web` → Networking → Custom Domain: add `jacksoncareer.me` and `www.jacksoncareer.me`. Note the records Railway shows (a CNAME target, plus a TXT verification record if it asks for one).
+  - **Annotation (2026-10-26, written afterward):** Only `jacksoncareer.me` was added as a custom domain; Railway's trial allows one. Railway asked for the TXT record `_railway-verify.jacksoncareer.me`, created in Cloudflare at 02:05:07 UTC on 2026-10-11 (Cloudflare audit log). `www` later got a Cloudflare redirect instead (`docs/evidence/www-redirect.md`).
+- [x] **Step 2:** At the DNS provider, replace the `A 52.159.85.45` records with Railway's records. The apex needs CNAME flattening or ALIAS support. If the registrar can't do that, move DNS to a provider that can, such as Cloudflare, before continuing.
+  - **Annotation (2026-10-26, written afterward):** Cloudflare already hosted the zone (active since 2026-10-01 21:58 UTC, moved from Namecheap's `registrar-servers.com` nameservers), so no DNS move was needed. The root's `A 52.159.85.45` was replaced by `CNAME ctxkvml3.up.railway.app` at **01:51:12 UTC**, and `www`'s at 02:29:54 UTC (see *Record* below).
+- [ ] **Step 3: Verify** (laptop) after Railway shows the certificate as issued: *(not recorded at the time; see annotation below)*
 
 ```bash
 dig +short jacksoncareer.me www.jacksoncareer.me    # no longer 52.159.85.45
@@ -553,16 +555,54 @@ curl -s https://jacksoncareer.me/api/v1/health
 
 Expected: HTTP 200, Railway edge headers, health ok. Then make one admin edit and publish to prove writes land in Postgres.
 
+**Annotation (2026-10-26, written afterward):** These checks weren't recorded on 2026-10-11. The earliest saved post-cutover evidence is the DNS snapshot of 2026-10-13 (`docs/evidence/dns-before-zoho.md`: both names CNAME to Railway). The equivalent checks were run on 2026-10-26 and are listed in *Record* below. The admin edit that proves writes land in Postgres wasn't recorded either. The "This Website (In Progress)" project row, added later and listed on the live `/projects`, shows writes do reach Postgres, but its date isn't recorded.
+
 ### Task 7: Record and hold the rollback
 
-- [ ] **Step 1:** Fill in a **Result** line under every step above. Add a final *Record* section: the deployed commit, the cutover time (UTC), the DNS records before and after.
+- [x] **Step 1:** Fill in a **Result** line under every step above. Add a final *Record* section: the deployed commit, the cutover time (UTC), the DNS records before and after. *(done 2026-10-26, afterward; see Record below)*
 - [ ] **Step 2:** **Rollback** (until the VM is decommissioned): point DNS back to `A 52.159.85.45`. The VM is unchanged and still serves the pre-cutover content. Admin edits made on Railway after cutover would have to be re-applied or copied back by hand.
-- [ ] **Step 3:** Commit the plan doc with its results. Decommissioning the VM gets its own plan once Railway has run cleanly for 7 days.
+  - **Annotation (2026-10-26, written afterward):** **No longer possible.** The VM was deleted on 2026-10-13 at 23:03 UTC (`docs/superpowers/plans/2026-10-01-operate-the-vm.md`, section 5). Railway Postgres is the only copy of the data. A Railway-only rollback procedure is a separate TASKS.md item.
+- [x] **Step 3:** Commit the plan doc with its results. Decommissioning the VM gets its own plan once Railway has run cleanly for 7 days. *(results committed 2026-10-26; the VM was decommissioned on 2026-10-13 without its own plan, at the instructor's direction)*
 
 ```bash
 git add docs/superpowers/plans/2026-10-10-railway-postgres-migration.md
 git commit -m "Record Railway migration results"
 ```
+
+## Record (written 2026-10-26, after the cutover)
+
+Reconstructed from the Cloudflare audit log (`cf audit-logs list --zone-name jacksoncareer.me`), Git history, and certificates. Nothing in this section was written on the day.
+
+**Cutover timeline (2026-10-11, UTC)**
+
+| Time | Change | Source |
+|---|---|---|
+| 00:14–00:21 | Migration code and this plan committed (`f5fa2d1` … `7cd922f`) and pushed to `main` | Git |
+| 00:26:35 | VM database backup taken (Task 5 Step 4) | Step 4 Result |
+| after 00:26 | Data copied into Railway Postgres and compared: identical in all 10 tables (Task 5 Step 5) | Step 5 Result |
+| **01:51:12** | Root: `A 52.159.85.45` (VM) deleted, `CNAME ctxkvml3.up.railway.app` created, DNS only | Cloudflare audit log |
+| 02:05:07 | `TXT _railway-verify.jacksoncareer.me` created, so Railway could verify the domain | Cloudflare audit log |
+| ~02:06 | Railway's Let's Encrypt certificate issued. Its `notBefore` is 01:07:07, and Let's Encrypt backdates `notBefore` by roughly an hour, so issuance was most likely just after the TXT record. Inferred, not observed. | `openssl`, 2026-10-26 |
+| 02:29:54 | `www`: `A 52.159.85.45` deleted, `CNAME ctxkvml3.up.railway.app` created, DNS only | Cloudflare audit log |
+
+**Deployed commit at cutover:** most likely `7cd922f`. It's the last commit on `main` before the cutover, and no commits followed until 2026-10-13. Railway's deployment list no longer reaches back to 2026-10-11, so the deployment itself can't be confirmed.
+
+**DNS before and after**
+
+| Name | Before (until 2026-10-11) | After the cutover | Now (2026-10-26) |
+|---|---|---|---|
+| `jacksoncareer.me` | `A 52.159.85.45`, DNS only | `CNAME ctxkvml3.up.railway.app`, DNS only | same |
+| `www.jacksoncareer.me` | `A 52.159.85.45`, DNS only | `CNAME ctxkvml3.up.railway.app`, DNS only | proxied placeholder + redirect to the root |
+| `_railway-verify` | — | TXT added | same |
+
+`www` didn't go straight from Railway to the redirect. On 2026-10-13 at 22:22 UTC the redirect rule was created, and at 22:25:56 `www` was changed to `A 52.159.85.45` (the VM), DNS only, so the rule couldn't run. The VM was deleted at 23:03, which left `www` broken until it was proxied on 2026-10-26 (`docs/evidence/www-redirect.md`). A `www` CNAME to Railway between 2026-10-11 and 2026-10-13 probably didn't serve the site either, since `www` was never added to Railway as a domain. Not verified.
+
+**Post-cutover checks**
+- 2026-10-11: none recorded.
+- 2026-10-13: DNS snapshot (`docs/evidence/dns-before-zoho.md`).
+- 2026-10-26: `/`, `/about`, `/projects`, health → 200 from Railway deployment `6c1e4147`. Railway certificate valid, `Verify return code: 0` (`docs/how-this-site-is-secured.md`, Railway addendum). Full DNS check (`docs/evidence/dns-final.md`). Database failure → 503 → recovery → 200 (`TASKS.md`, final section).
+
+**Rollback:** the plan's rollback (DNS back to the VM) held until the VM was deleted on 2026-10-13 at 23:03 UTC. From then on, Railway was the only copy.
 
 ## Out of scope (follow-ups)
 

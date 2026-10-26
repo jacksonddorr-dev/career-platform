@@ -53,7 +53,7 @@ Everything above is my Exercise 4 write-up and is unchanged. This addendum recor
 | nginx 443 server block and the HTTP→HTTPS redirect | **Not recorded, no longer verifiable**, for the same reason. | — |
 | Renewal timer and dry run | **Not recorded, no longer verifiable.** The section above describes the twice-daily timer, but no `systemctl list-timers` or `certbot renew --dry-run` output was saved. | — |
 
-**Order of events (inferred from the timestamps, not observed directly):** the certificate was issued at 01:01 UTC, about 33 minutes *before* port 443 was opened at 01:34 UTC. That fits Let's Encrypt's HTTP-01 challenge, which proves control of the domain over port 80, already open, so 443 only had to be opened afterward to serve the site over HTTPS.
+**Order of events (corrected 2026-10-26, still inferred):** the certificate's `notBefore` is 01:01:07 UTC, but Let's Encrypt backdates `notBefore` by roughly an hour, so the certificate was most likely issued around 02:00 UTC, *after* port 443 was opened at 01:34:39. Either order works: Let's Encrypt's HTTP-01 challenge proves control of the domain over port 80, which was already open. An earlier version of this note read `notBefore` as the issue time and said the certificate came first; that was wrong.
 
 ---
 
