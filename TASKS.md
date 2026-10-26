@@ -66,14 +66,14 @@ The email won’t arrive in Zoho, so the Zoho MCP will have nothing to show you.
 ## 8. Engineering record
 
 - [ ] Create the submission index with the repo URL, live URL, final SHA, and links to all evidence — `docs/project-1-submission.md`
-- [ ] Commit the README changes — `README.md`
-- [ ] Put what the site does and its live address at the top — `README.md`
-- [ ] Add Azure and Railway architecture diagrams with locations, protocols, ports, and email and analytics paths — `README.md` or a linked diagrams file
-- [ ] Add at least two decisions with alternatives and reasons (Railway migration, managed vs. self-hosted email) — `README.md`
-- [ ] Add investigated failures, linking `docs/evidence/ex03.md` and `docs/evidence/ex05.md` and labeling ex05 as a deliberate lab — `README.md`
-- [ ] Add remaining limitations — `README.md`
-- [ ] Add a short reflection — `README.md`
-- [ ] Add costs and credits, the Railway trial end date, a service inventory, and cleanup plans — `README.md`
+- [x] Commit the README changes — `README.md` — all README edits committed during the 2026-10-25/26 work
+- [x] Put what the site does and its live address at the top — `README.md`
+- [x] Add Azure and Railway architecture diagrams with locations, protocols, ports, and email and analytics paths — `README.md` or a linked diagrams file — `docs/request-path.md` (4 diagrams), summarized in README "Architecture"
+- [x] Add at least two decisions with alternatives and reasons (Railway migration, managed vs. self-hosted email) — `README.md` — README "Decisions", reconstructed 2026-10-26 because the in-class originals were lost
+- [x] Add investigated failures, linking `docs/evidence/ex03.md` and `docs/evidence/ex05.md` and labeling ex05 as a deliberate lab — `README.md` — README "Investigated failures"
+- [x] Add remaining limitations — `README.md` — README "Remaining limitations"
+- [x] Add a short reflection — `README.md` — README "Reflection" (my words, grammar corrected)
+- [x] Add costs and credits, the Railway trial end date, a service inventory, and cleanup plans — `README.md` — README "Costs, credits, and cleanup" (Railway trial ends 2026-11-06)
 - [ ] Link the original spec and all plans — `README.md` and `docs/project-1-submission.md`
 
 ---
@@ -125,7 +125,3 @@ Totals for the whole run: `/` returned 200 with the project listed 2,055 times a
 - The 200 sent at 00:15:39.847, mid-outage, is unexplained. A likely cause is a request answered by one of the 2 workers over a connection that hadn't closed yet. Not verified.
 - The probe didn't check for my name on the 503 pages. The notice is rendered inside the page template, so the page and profile rendered, but profile visibility during a failure is verified by the tests in `tests/test_web.py`, not by this run.
 - A first attempt at 00:02:36 (Postgres down about one second) happened after a slower probe had stopped, so it captured no 503. It isn't counted here.
-
-**In my own words:**
-
-&nbsp;

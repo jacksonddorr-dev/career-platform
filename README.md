@@ -1,5 +1,35 @@
 # Career Platform
 
+**Live site: https://jacksoncareer.me** (`www.jacksoncareer.me` redirects there)
+
+My personal career site: a FastAPI app that shows my profile, experience, education, skills, and projects, and a downloadable résumé PDF, all read from a database when the page is requested. A small authenticated admin API edits the content. It started in Codespaces in September 2026, ran on an Azure Ubuntu VM with nginx, systemd, and SQLite, and since 2026-10-11 runs on Railway with PostgreSQL. Email for the domain goes through Zoho Mail, and visits are measured with Google Analytics 4 after the visitor consents.
+
+The Project 1 evidence is indexed in [`docs/project-1-submission.md`](docs/project-1-submission.md).
+
+**Contents**
+
+- Set up and run locally: [Local development](#local-development), [Checks](#checks)
+- Update the live site: [Deploys](#deploys) (every push to `main` deploys), [Service variables](#service-variables)
+- [Architecture](#architecture): web, email, and analytics paths
+- [Domains and DNS](#domains-and-dns)
+- Outages and rollback: [Snapshot fallback and recovery](#snapshot-fallback-and-recovery), [Rolling back a bad change](#rolling-back-a-bad-change)
+- Migration: [How the migration preserved the data](#how-the-migration-preserved-the-data), [Azure to Railway: who manages what](#azure-to-railway-who-manages-what)
+- [Analytics (GA4)](#analytics-ga4)
+- [Decisions](#decisions): Railway migration, managed email
+- [Costs, credits, and cleanup](#costs-credits-and-cleanup)
+- [Investigated failures](#investigated-failures) and [Remaining limitations](#remaining-limitations)
+- [Reflection](#reflection)
+- [Spec, plans, and history](#spec-plans-and-history)
+
+## Architecture
+
+Diagrams with locations, protocols, ports, and data flow are in [`docs/request-path.md`](docs/request-path.md):
+
+1. **Azure (historical, 2026-09-29 to 2026-10-11):** browser → Cloudflare DNS (`A 52.159.85.45`) → Azure NSG (22 from my laptop, 80/443 from anywhere) → nginx on 80/443, where TLS ended → uvicorn (2 workers, systemd) on `127.0.0.1:8000` → SQLite file on the VM's disk.
+2. **Railway (current):** browser → Cloudflare DNS (root CNAME, DNS only, flattened) → Railway's edge on 443, where TLS ends → app on port 8080 → PostgreSQL over Railway's private network. `www` is answered by Cloudflare's edge with a 301 to the root.
+3. **Email:** Gmail → MX lookup → Zoho's MX servers (SMTP 25) → my mailbox. Replies go out through Zoho's servers, and receivers check SPF, DKIM, and DMARC in Cloudflare DNS.
+4. **Analytics:** after the visitor allows it, the browser loads `gtag.js` from Google and sends events straight to Google Analytics over HTTPS, never through Railway.
+
 ## Local development
 
 This application uses Python 3.11+ and FastAPI. `uv` is optional; the commands
@@ -258,3 +288,130 @@ The site uses Google Analytics 4, measurement ID `G-XWCRC21WXW`, and only after 
 - Visitors who decline, block scripts, or use an ad blocker aren't counted, so GA4 undercounts real visits.
 - Counts of my own test visits are mixed in with real ones. No internal-traffic filter is set up.
 - I didn't watch the `/g/collect` requests in the browser's Network tab, so the "nothing is sent before Allow" claim rests on the code and the Consent Mode default, not on an observed check.
+
+
+## How the migration preserved the data
+
+Records: [`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`](docs/superpowers/plans/2026-10-10-railway-postgres-migration.md) (Task 5 results and the *Record* section).
+
+1. **Plan first.** The plan and the migration code were committed 2026-10-11 00:14–00:21 UTC (`f5fa2d1` … `7cd922f`), before anything on the live site changed.
+2. **Compatibility.** SQLite-to-Postgres differences were fixed and tested before the copy: the psycopg driver URL (`f5fa2d1`), a `%` in the password breaking Alembic (`f5fa2d1`), the `status` enum type left behind by downgrade (`0ca8844`), and id sequences after copying rows with their ids (`e4907ee`).
+3. **Consistent source copy.** Admin edits were frozen and the VM database was copied with SQLite's online `.backup` at 00:26:35 UTC, checked by SHA-256 and `integrity_check`.
+4. **Copy.** `python -m app.copy_db` copied every row into the empty, migrated Railway database, keeping ids, and refuses a target that already has rows.
+5. **Comparison.** VM live, the backup, and Railway were compared table by table, row by row, and column by column: identical in all 10 tables. All 10 id sequences were checked: the next id is `max(id)+1`.
+6. **Not re-seeded.** The seed script creates "Ada Analyst." The VM held my real résumé content, loaded 2026-09-30, and Railway has exactly that. See the Step 5 annotation in the plan.
+7. **Cutover.** DNS moved at 01:51:12 UTC (Cloudflare audit log).
+
+**Not done:** the rendered pages and PDF of the VM and Railway were never compared (plan Task 5 Step 6), and the VM is gone, so that comparison can't be made now.
+
+## Decisions
+
+> **Written 2026-10-26 from the repository's records.** I wrote both decisions in class, but those originals were lost. These reconstructions use the plans, commits, and evidence linked in each one, and the vendor facts were checked on 2026-10-26.
+
+### 1. Move the site from the Azure VM to Railway with PostgreSQL
+
+**Context.** The course required moving the running site from the Azure VM to Railway. The choices that remained were what database to use there, how to move the data, and how to switch over safely. Railway's trial lasts 30 days or $5 of usage and allows one custom domain.
+
+**Alternatives considered**
+- **Stay on the Azure VM.** I already knew how it worked, but I'd keep patching Ubuntu, nginx, certbot, and the NSG myself, and the course required the move.
+- **Railway with SQLite.** It needed the fewest code changes, but a Railway container's filesystem is reset on every deploy, so a database file would be lost unless I attached and managed a volume for it.
+- **Railway with PostgreSQL (chosen).** Railway runs the database as its own service on a private network, and the app already reached the database only through SQLAlchemy and one `DATABASE_URL`.
+- **How to move the data:** re-run the seed script (rejected: it creates the demo "Ada Analyst" profile and would lose my real content), or copy every row from the VM's SQLite into Postgres with the same ids (chosen, `app/copy_db.py`, `e4907ee`).
+
+**Reasons**
+- Railway takes over the operating system, the web entry point, TLS certificates, and restarts (see *Azure to Railway: who manages what*).
+- PostgreSQL avoids the reset-on-deploy problem and is the engine the original spec suggested ("PostgreSQL or equivalent").
+- Copying rows with their ids keeps every record and its relationships exactly as on the VM, and can be checked row by row.
+- Keeping the VM unchanged gave a rollback (point DNS back) until it was deleted on 2026-10-13.
+
+**Trade-offs I accepted**
+- Engine differences to fix first: the driver URL, the enum type, and id sequences (`f5fa2d1`, `0ca8844`, `e4907ee`).
+- Less control and visibility: no SSH by default, and no database access from my laptop without extra setup.
+- A short-lived platform: the trial ends, and the site moves again to AWS after the midterm.
+
+**How it turned out.** The data arrived identical in all 10 tables and the cutover happened at 01:51:12 UTC on 2026-10-11 (*How the migration preserved the data*). The trade-offs also showed up: two service variables went unset for 15 days, and there's still no database backup.
+
+### 2. Use managed email (Zoho Mail) instead of hosting my own
+
+**Context.** I wanted a resume-ready address at my domain (`jackson@jacksoncareer.me`) that can send, receive, and reply, and passes SPF, DKIM, and DMARC.
+
+**Alternatives considered**
+- **Self-host a mail server** (for example Postfix and Dovecot) on the Azure VM.
+- **Cloudflare Email Routing.** Free and already where my DNS is, but it only forwards incoming mail to another inbox. It can't send as `jackson@jacksoncareer.me`.
+- **Google Workspace or Microsoft 365.** Full-featured, but paid per user.
+- **Zoho Mail Forever Free (chosen).** One domain, up to 5 users, 5 GB per user, webmail only: IMAP, POP, and ActiveSync aren't included (zoho.com/mail pricing page, read 2026-10-26).
+
+**Reasons**
+- **Self-hosting wasn't workable on my subscription.** Azure blocks outbound SMTP on TCP port 25 from VMs for every subscription type except Enterprise Agreement and MCA-E (Microsoft Learn, "Troubleshoot outbound SMTP connectivity issues in Azure," read 2026-10-26), so my VM couldn't deliver mail directly to other servers. Running my own server would also have meant managing spam filtering, mail TLS, IP reputation, and security updates myself.
+- **The VM was going away.** The site was moving to Railway, and Railway doesn't host mail servers. Email tied to the VM would have had to move again.
+- **Managed email is separate from the website.** MX records send mail straight to Zoho, so moving the site from Azure to Railway didn't touch email.
+- **It's free and does what the project needs:** send, receive, and reply from my domain, with SPF, DKIM, and DMARC.
+
+**Trade-offs I accepted**
+- Webmail only on the free plan, no IMAP client.
+- My mail is stored by a third party under its terms.
+- Deliverability depends on Zoho's servers and reputation.
+
+**How it turned out.** Inbound mail arrived on 2026-10-13. A webmail reply on 2026-10-25 reached Gmail's Inbox in 5 seconds with SPF, DKIM, and DMARC passing for `jacksoncareer.me` (`docs/evidence/zoho-header-check.md`, `docs/evidence/ex06.md`).
+
+## Costs, credits, and cleanup
+
+Recorded 2026-10-25 (PDT). Balances come from each provider's dashboard, read by me, except where noted.
+
+| Service | What it provides | Kind | Plan / credit | Spent so far | Expires or renews | Cleanup plan |
+|---|---|---|---|---|---|---|
+| **Railway** (project `prolific-enthusiasm`) | `career-platform` app service, Postgres service with its volume, custom domain | Compute (app, Postgres), **retained storage** (Postgres volume) | Free trial: $5 of credit, 30 days | $0.51 ($4.49 of $5 left) | **Trial ends 2026-11-06** | Move the site to AWS after the midterm, before 2026-11-06. Take a database dump first, since the Postgres volume holds the only copy of the data. After the move, delete the Railway project. Railway's Free plan doesn't allow a custom domain. |
+| **Azure for Students** (through the GitHub Student Developer Pack) | Was the VM, OS disk, NIC, static public IP, NSG, and virtual network in `rg-career-platform` | Compute (VM, deleted), storage (OS disk, deleted), **network (static IP, still billed while it exists)** | $100 credit per year, renewable with valid student standing | $4.08 of $100 | Credit expires in 332 days, about **2027-09-22** | The VM, disk, and NIC were deleted 2026-10-13 as instructed. Still to do: release the static IP `vm-career-platform-ip` (nothing points to it since 2026-10-26) and delete the rest of `rg-career-platform`, once the instructor's cleanup directions confirm it. |
+| **Namecheap** | Registration of `jacksoncareer.me` | Other (domain) | Free first year | $0 | Registered 2026-10-01; **renews 2027-10-01 for $23.98** | Decide before 2027-10-01 whether to renew. If it lapses, the site's address and the Zoho mailbox both stop working. |
+| **Cloudflare** | Authoritative DNS, the `www` redirect, the edge certificate for `www` | Other (DNS) | Free plan (zone shows "Free Website", checked 2026-10-26) | $0 | No expiry | Keep. Nameservers stay delegated to Cloudflare. |
+| **Zoho Mail** | Mailbox `jackson@jacksoncareer.me` | Retained storage (mail) | Free; I don't pay for it | $0 | No expiry stated | Keep. Its MX, SPF, DKIM, and DMARC records must stay in Cloudflare. |
+| **Google Analytics 4** | Property `G-XWCRC21WXW` | Other (analytics) | Free | $0 | — | Keep. |
+| **GitHub** | Public repository `jacksonddorr-dev/career-platform` | Other (source) | Free | $0 | — | Keep. |
+
+- **Total spent so far:** $0.51 of Railway trial credit and $4.08 of Azure student credit. No money out of pocket.
+- **The Azure figure is the portal's credit balance.** The usage API (`az consumption usage list`) reported $0.00 for the same resources, probably because student-credit usage isn't returned there. Not investigated further.
+
+## Investigated failures
+
+Each row links to the record with the symptom, checks, diagnosis, repair, and repeated check.
+
+| Failure | Kind | Real or deliberate | Symptom → diagnosis → repair → re-check | Record |
+|---|---|---|---|---|
+| No `uv.lock` for `uv sync --locked` | Application dependency | Real (Azure build) | Plan assumed a lock file; `git ls-files` showed none → generated `uv.lock` on the laptop and committed it (`1e5ee06`) → `uv lock --check` exit 0, tests passed, VM installed 28 packages | [`docs/evidence/ex03.md`](docs/evidence/ex03.md) §3.1 |
+| Other Azure build issues: tests overwriting the snapshot, unsaved `.env`, wrong PID file, false "running" check, SSH blocked after IP change | Application / network | Real | Each with what happened, how it was found, and what confirmed the fix | [`docs/evidence/ex03.md`](docs/evidence/ex03.md) §3.2–3.6 |
+| Old A record and mismatched certificate after a move to Railway | DNS / TLS | **Deliberate, simulated lab** (given output; the repair was interpreted, not run) | `curl` error 60 → `dig` still returned the old A record → replace with Railway's CNAME → the expected output shows the CNAME and HTTP 200 | [`docs/evidence/ex05.md`](docs/evidence/ex05.md) |
+| `www.jacksoncareer.me` not responding (2026-10-13 to 2026-10-26) | DNS | Real | `www` timed out → Cloudflare listed `www` as a DNS-only A record to the deleted VM, so the existing redirect rule never ran → made `www` a proxied placeholder → `curl` shows 301 to the root and 200, certificates verify | [`docs/evidence/www-redirect.md`](docs/evidence/www-redirect.md) |
+| Railway build failed: "No start command detected" (2026-10-25) | Deployment / config | Real | Redeploy `a46a5e88` FAILED → Railpack wasn't reading the start command → added `railpack.json` (`7a2113b`) → uncached rebuild `2eb776be` SUCCESS, log shows `sh scripts/start.sh` | [`docs/evidence/postgres-password-rotation.md`](docs/evidence/postgres-password-rotation.md) |
+| Database outage served stale content with 200 | Application / database | Found by audit; live check deliberate | Code served the snapshot with 200 → changed to 503 with "Projects temporarily unavailable" (`4afc2ee`) → live Postgres restart gave 11 × 503 then 200 with projects | [`docs/evidence/reviewed-change.md`](docs/evidence/reviewed-change.md); `TASKS.md` final section |
+| Railway service variables missing (until 2026-10-26) | Configuration / security | Real | Canonical links pointed to `127.0.0.1`; a name-only variable listing showed only `DATABASE_URL`, so sessions were signed with the public default secret → set `SESSION_SECRET`, `SITE_URL`, `APP_ENV` → canonical correct, old-secret cookie gets 401 | Railway plan, Task 5 Step 1 annotation |
+
+## Remaining limitations
+
+- **No database backup.** Railway Postgres is the only copy of the site's data, and the data steps of the rollback procedure are untested.
+- **No database access from the laptop.** Postgres has no public proxy, so migrations, dumps, and inspection would need `railway ssh` set up first.
+- **Pre-cutover page and PDF parity was never checked**, and no checks were recorded on the cutover day (2026-10-11).
+- **Azure evidence is incomplete:** no deliberate VM restart was recorded, and the certbot and nginx HTTPS configuration were never saved before the VM was deleted.
+- **Admin activity isn't logged**, so whether anyone used the public default session secret before 2026-10-26 is unknown.
+- **The site answers HEAD requests with 405** (GET-only routes), which can confuse uptime checkers and `curl -I`.
+- **During the live outage test one request returned 200** mid-outage, most likely over a connection that hadn't closed yet. Not verified.
+- **GA4 undercounts** visitors who decline or block scripts, and my test visits aren't filtered out.
+- **No pre-MX email test** was done, so what happened to mail before MX existed isn't recorded.
+- **Deadlines:** Railway stops supporting `railway.json` after 2026-12-01. The Railway certificate should renew around 2026-12-10, which should be checked.
+- **The Azure static IP `52.159.85.45`** and its NSG and virtual network still exist in `rg-career-platform` and should be cleaned up.
+
+## Reflection
+
+Building my career platform showed me how many separate pieces have to work together for one website to run. I deployed it on Railway, managed the domain and DNS through Cloudflare, and set up many other services along the way. The most valuable aspect was learning to troubleshoot. After a security incident paused Railway deployments, I rotated my database credentials and learned why reference variables keep services in sync better than pasted connection strings. My next redeploy failed with a "no start command" error, even though the same code had worked minutes earlier. By comparing the two builds and working with the Claude coding agent, I was able to accurately troubleshoot and fix the problem. Using an AI agent made the work faster, but I still had to understand its reasoning and decide which actions to approve, especially with passwords and production deployments. If I did this again, I would record checks on the day instead of reconstructing them afterward. Overall, I feel much more confident building a system from start to finish and fixing it when something breaks.
+
+## Spec, plans, and history
+
+- Original design spec: [`docs/superpowers/specs/2026-09-15-career-platform-design.md`](docs/superpowers/specs/2026-09-15-career-platform-design.md). Section 12.1, added afterward, explains the SQLite choice.
+- Implementation plan: [`docs/superpowers/plans/2026-09-15-career-platform-implementation.md`](docs/superpowers/plans/2026-09-15-career-platform-implementation.md)
+- Azure VM migration plan: [`docs/superpowers/plans/2026-09-24-azure-vm-migration.md`](docs/superpowers/plans/2026-09-24-azure-vm-migration.md)
+- Operate-the-VM plan (nginx, systemd, verification, and the decommission note): [`docs/superpowers/plans/2026-10-01-operate-the-vm.md`](docs/superpowers/plans/2026-10-01-operate-the-vm.md)
+- Railway and PostgreSQL migration plan, which stands in for a separate spec: [`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`](docs/superpowers/plans/2026-10-10-railway-postgres-migration.md)
+- HTTPS write-up (Exercise 4, with Azure and Railway addenda): [`docs/how-this-site-is-secured.md`](docs/how-this-site-is-secured.md)
+- Audit checklist and live outage record: [`TASKS.md`](TASKS.md)
+
+Notes marked "written afterward" were added on 2026-10-26 while reconstructing this record. The plans' original steps are unchanged. Commit history: `git log --oneline` (the first commit is 2026-09-15).
+
