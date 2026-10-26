@@ -167,3 +167,29 @@ to the VM at `52.159.85.45`) stopped being possible when the VM was deleted on
 TASKS.md item.
 
 Never log or commit session secrets, administrator passwords, or database URLs.
+
+## Azure to Railway: who manages what
+
+The site ran on an Azure Ubuntu VM from 2026-09-29 and moved to Railway on 2026-10-11 (`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`, *Record*). The VM was deleted on 2026-10-13. This table compares who was responsible for each layer.
+
+| Layer | Azure VM (I managed) | Railway (Railway manages) | What's still mine on Railway |
+|---|---|---|---|
+| Operating system | Ubuntu 24.04 on the VM: packages, updates, users, SSH keys | The container base image Railpack builds on | Nothing at the OS level, and there's no SSH by default |
+| Network and firewall | NSG rules: 22 from my laptop's IP only, 80 and 443 from anywhere. I updated the SSH rule whenever my IP changed. | Railway's edge and its private network between the app and Postgres | Nothing to configure |
+| Runtime | System Python 3.12.3 plus a `uv` virtual environment I created | Railpack installs Python and packages at each build | Choosing versions: `.python-version` and `uv.lock` |
+| Process management | A systemd unit (`Restart=always`, starts at boot) running uvicorn with 2 workers on `127.0.0.1:8000` | Starts the container, restarts it on failure (up to 5 times, `railway.json`), and waits for `/api/v1/health` before switching traffic | The start command (`scripts/start.sh`: migrate, snapshot, uvicorn with 2 workers on `$PORT`) |
+| Web entry point | nginx I installed and configured on 80/443, forwarding to the app | Railway's edge, forwarding plain HTTP to the app on port 8080 | `--proxy-headers` so the app trusts the edge's `X-Forwarded-Proto` |
+| TLS certificate | Let's Encrypt via certbot on the VM, renewed by a timer there; TLS ended at nginx | Let's Encrypt certificate issued and renewed by Railway; TLS ends at Railway's edge | Keeping the root DNS-only and pointed at Railway, and keeping `_railway-verify`, or renewal fails |
+| Application code | `git pull` on the VM, then a service restart, by hand | Builds and deploys every push to `main` automatically | The code, and reviewing a change before pushing, since a push is a production deploy |
+| Configuration and secrets | `.env` on the VM, `chmod 600` | Stores service variables and injects them | Setting them correctly. Until 2026-10-26 `SESSION_SECRET` and `SITE_URL` were missing, and nothing warned me. |
+| Database software | SQLite: a library inside the app, no server | Runs a PostgreSQL 18.6 container with a volume | Schema changes (Alembic, run at every boot). Postgres version upgrades: not checked who owns these. |
+| Data | One file on the VM's disk, backed up by me with `sqlite3 .backup` | Stores it on the Postgres volume | Backups. I haven't set up or verified any Railway backups, so Railway Postgres is currently the only copy. |
+| DNS | Cloudflare records pointing at the VM's IP | Nothing | All of it: Cloudflare records, the `www` redirect, and the Zoho mail records |
+| Logs and checks | `journalctl`, `ss`, `systemctl` over SSH | Keeps build and runtime logs (`railway logs`) | Reading them, and checking the site after each deploy |
+
+**What Railway didn't take off my hands:** the parts that are specific to my site. That's code, configuration and secrets, data and its backups, DNS, schema migrations, dependency versions, and checking that a deploy worked. Three gaps showed up after the move:
+- The service variables were incomplete for 15 days.
+- `www` was broken from 2026-10-13 to 2026-10-26.
+- There's no backup of the production database.
+
+Platform deadlines are mine to track too: Railway stops supporting `railway.json` after 2026-12-01.
