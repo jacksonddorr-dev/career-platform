@@ -51,10 +51,10 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 ## 6. Zoho email
 
-- [ ] Create the header analysis showing SPF, DKIM, and DMARC results — `docs/evidence/zoho-header-check.md`
-- [ ] Add a line for the message sent before MX existed and what happened to it — `docs/evidence/ex06.md`
-- [ ] Reply from Zoho webmail and confirm Gmail shows the custom sender — `docs/evidence/ex06.md` Replied row
-- [ ] Replace both "_Check Gmail_" cells with confirmed delivery results — `docs/evidence/ex06.md`
+- [x] Create the header analysis showing SPF, DKIM, and DMARC results — `docs/evidence/zoho-header-check.md`
+- [x] Add a line for the message sent before MX existed and what happened to it — `docs/evidence/ex06.md` — recorded as **not done**
+- [x] Reply from Zoho webmail and confirm Gmail shows the custom sender — `docs/evidence/ex06.md` Replied row — 2026-10-25 19:33 PDT, Inbox
+- [x] Replace both "_Check Gmail_" cells with confirmed delivery results — `docs/evidence/ex06.md` — Test 06 confirmed in Inbox; the 10-19 MCP reply marked superseded and not checked
 
 ## 7. GA4
 
