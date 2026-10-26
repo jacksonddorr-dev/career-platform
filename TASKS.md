@@ -65,7 +65,7 @@ The email won’t arrive in Zoho, so the Zoho MCP will have nothing to show you.
 
 ## 8. Engineering record
 
-- [ ] Create the submission index with the repo URL, live URL, final SHA, and links to all evidence — `docs/project-1-submission.md`
+- [x] Create the submission index with the repo URL, live URL, final SHA, and links to all evidence — `docs/project-1-submission.md` — the final SHA is the one submitted in Brightspace
 - [x] Commit the README changes — `README.md` — all README edits committed during the 2026-10-25/26 work
 - [x] Put what the site does and its live address at the top — `README.md`
 - [x] Add Azure and Railway architecture diagrams with locations, protocols, ports, and email and analytics paths — `README.md` or a linked diagrams file — `docs/request-path.md` (4 diagrams), summarized in README "Architecture"
@@ -74,7 +74,7 @@ The email won’t arrive in Zoho, so the Zoho MCP will have nothing to show you.
 - [x] Add remaining limitations — `README.md` — README "Remaining limitations"
 - [x] Add a short reflection — `README.md` — README "Reflection" (my words, grammar corrected)
 - [x] Add costs and credits, the Railway trial end date, a service inventory, and cleanup plans — `README.md` — README "Costs, credits, and cleanup" (Railway trial ends 2026-11-06)
-- [ ] Link the original spec and all plans — `README.md` and `docs/project-1-submission.md`
+- [x] Link the original spec and all plans — `README.md` and `docs/project-1-submission.md`
 
 ---
 
