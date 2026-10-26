@@ -53,14 +53,15 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 
 - [x] Create the header analysis showing SPF, DKIM, and DMARC results — `docs/evidence/zoho-header-check.md`
 - [x] Add a line for the message sent before MX existed and what happened to it — `docs/evidence/ex06.md` — recorded as **not done**
+The email won’t arrive in Zoho, so the Zoho MCP will have nothing to show you. The MX records only impact recieving not sending.
 - [x] Reply from Zoho webmail and confirm Gmail shows the custom sender — `docs/evidence/ex06.md` Replied row — 2026-10-25 19:33 PDT, Inbox
 - [x] Replace both "_Check Gmail_" cells with confirmed delivery results — `docs/evidence/ex06.md` — Test 06 confirmed in Inbox; the 10-19 MCP reply marked superseded and not checked
 
 ## 7. GA4
 
-- [ ] Record the action performed, the event observed (page_view and click), the date, and why the event is useful — `docs/evidence/ex06.md` §3 or README analytics section
-- [ ] Explain the collection path from the browser to GA (consent → gtag → collect) and what Realtime/DebugView showed — README analytics section
-- [ ] Confirm the outbound click relies on enhanced measurement, or add an explicit event — GA admin settings or `app/templates/base.html`
+- [x] Record the action performed, the event observed (page_view and click), the date, and why the event is useful — `docs/evidence/ex06.md` §3 or README analytics section — `ex06.md` §3 "Realtime check" (LinkedIn click, 2026-10-25 8:10 PM PDT)
+- [x] Explain the collection path from the browser to GA (consent → gtag → collect) and what Realtime/DebugView showed — README analytics section — README "Analytics (GA4)"
+- [x] Confirm the outbound click relies on enhanced measurement, or add an explicit event — GA admin settings or `app/templates/base.html` — checked 2026-10-25 in GA4 (Admin → Data streams → Enhanced measurement): Page views and Outbound clicks are on; `base.html` sends no custom events, so `click` comes from that setting
 
 ## 8. Engineering record
 

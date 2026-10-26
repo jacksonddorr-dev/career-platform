@@ -237,3 +237,24 @@ The site ran on an Azure Ubuntu VM from 2026-09-29 and moved to Railway on 2026-
 - There's no backup of the production database.
 
 Platform deadlines are mine to track too: Railway stops supporting `railway.json` after 2026-12-01.
+
+
+## Analytics (GA4)
+
+The site uses Google Analytics 4, measurement ID `G-XWCRC21WXW`, and only after the visitor agrees. The code is the consent banner and tag at the end of `app/templates/base.html`. The Privacy page (`/privacy`) explains it to visitors.
+
+**How a visit reaches Google Analytics**
+
+1. Railway serves the page. Every page sets Google's Consent Mode default to `denied` (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization`). Nothing is sent to Google, and `gtag.js` isn't loaded yet.
+2. The banner asks the visitor. The choice is saved in the browser's `localStorage` as `analytics-consent`, so the banner doesn't reappear on every page.
+3. **Allow:** the page calls `gtag('consent', 'update', {analytics_storage: 'granted'})`, then `gtag('config', 'G-XWCRC21WXW')`, and loads `gtag.js` from `www.googletagmanager.com`. **Decline:** nothing loads, and any `_ga` cookies are deleted.
+4. `gtag.js` sends a `page_view` event, and GA4's **enhanced measurement** adds automatic events, including `click` for links to another domain (`outbound = true`). The site defines no custom events.
+5. Each event is an HTTPS request **from the visitor's browser straight to Google** (`…google-analytics.com/g/collect`). It never passes through Railway or the app, which is why the server logs show none of it.
+6. GA4 shows the events in **Realtime** within seconds, and in standard reports later.
+
+**What the checks showed:** on 2026-10-25 at 8:10 PM PDT, after allowing analytics in a private window, I clicked the LinkedIn button. Realtime showed `page_view` for the visit and a `click` event with `link_domain = linkedin.com`, `link_url` set to my LinkedIn profile, and `outbound = true`. Enhanced measurement has Page views and Outbound clicks turned on. Details: `docs/evidence/ex06.md`, section 3.
+
+**Limits**
+- Visitors who decline, block scripts, or use an ad blocker aren't counted, so GA4 undercounts real visits.
+- Counts of my own test visits are mixed in with real ones. No internal-traffic filter is set up.
+- I didn't watch the `/g/collect` requests in the browser's Network tab, so the "nothing is sent before Allow" claim rests on the code and the Consent Mode default, not on an observed check.
