@@ -9,7 +9,7 @@ From the repository audit on 2026-10-20 against the Project 1 requirements. Each
 - [x] Stop the committed placeholder snapshot ("Cached Candidate") from being served on Railway — `data/public-profile.json` / `app/snapshot.py`
 
 - [x] Replace the snapshot-fallback test with tests for 503 on failure, 200 when healthy, and recovery without restart — `tests/test_web.py`
-- [ ] Record a dated failure → 503 → recovery → 200 check against the deployed app — evidence file linked from `docs/project-1-submission.md`
+- [x] Record a dated failure → 503 → recovery → 200 check against the deployed app — evidence file linked from `docs/project-1-submission.md`
 - [ ] Explain why SQLite was chosen as the initial engine — `docs/superpowers/specs/2026-09-15-career-platform-design.md` or README decisions section
 
 ## 2. Azure deployment
