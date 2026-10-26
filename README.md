@@ -90,12 +90,12 @@ Set these on the `career-platform` service under Variables. Never commit them.
 |---|---|
 | `jacksoncareer.me` | Railway, as a custom domain with a Railway-issued certificate |
 | `career-platform-production-1a1e.up.railway.app` | Railway's generated domain |
-| `www.jacksoncareer.me` | **Nothing (broken).** Its DNS-only A record still points to `52.159.85.45`, the static IP of the Azure VM deleted on 2026-10-13. Fixing it is the Cloudflare redirect in TASKS.md section 3. |
+| `www.jacksoncareer.me` | Cloudflare. A **proxied** placeholder A record (`192.0.2.1`) plus a redirect rule send `http://www` and `https://www` to `https://jacksoncareer.me` with a 301, keeping the path and query. See `docs/evidence/www-redirect.md`. |
 
 The domain is registered at Namecheap, and its DNS is hosted on Cloudflare. The
 root domain is a CNAME to the target Railway gives in `railway domain status
 jacksoncareer.me`; Cloudflare flattens it at the apex. Records are DNS-only, not
-proxied, so Railway issues and renews the certificate. Railway's ownership check
+proxied, so Railway issues and renews the certificate. `www` is the exception: it's proxied so Cloudflare can answer the redirect with its own edge certificate. Railway's ownership check
 is the TXT record `_railway-verify.jacksoncareer.me`; keep it.
 
 ### Operating it from the command line
