@@ -484,7 +484,9 @@ git push origin main
   - `curl -s https://<RAILWAY_DOMAIN>/api/v1/health` returns `{"status":"ok",...}`
   - Alembic logs nothing (`alembic.ini` has no logging section), so confirm the migration from the laptop instead: `uv run python -c "import os; from sqlalchemy import create_engine, text; print(create_engine(os.environ['U'].replace('postgresql://','postgresql+psycopg://',1)).connect().execute(text('select version_num from alembic_version')).all())"` with `U` set to the `RAILWAY_DATABASE_URL` from `.env`. Expect `[('0001_initial',)]`.
   - `/` returns 200 and is served from the committed snapshot, since the DB is still empty.
-- [ ] **Step 4: Freeze edits and pull the VM DB.** Make no admin edits until Task 6 is done. Use SQLite's online backup rather than `scp` of the live file:
+  - **Found (2026-10-11 ~00:45 UTC, read-only check):** Railway Postgres was already at `0001_initial`, with all 10 tables empty. Nothing in this session migrated it. Either the `web` service is already connected and the push of `7cd922f` deployed it, or it was migrated by hand. Not yet confirmed in the Railway dashboard.
+- [x] **Step 4: Freeze edits and pull the VM DB.** Make no admin edits until Task 6 is done. Use SQLite's online backup rather than `scp` of the live file:
+  - **Result (2026-10-11):** I made an online backup on the VM at `~/backups/career_platform-20261011T002635Z.db` (sha256 `1520f2f1…0177d49e`, integrity `ok`, counts equal to live). It was copied to the laptop with a matching hash. For the comparison, I also pulled a fresh online snapshot of the live DB; the temp file on the VM was removed.
 
 ```bash
 S=/private/tmp/claude-501/-Users-jacksondorr-career-platform/<session>/scratchpad
@@ -493,7 +495,7 @@ ssh -i ~/.ssh/isba4775_azure azureuser@52.159.85.45 \
 scp -i ~/.ssh/isba4775_azure azureuser@52.159.85.45:/tmp/cp-export.db "$S/cp-export.db"
 ```
 
-- [ ] **Step 5: Copy** (laptop)
+- [x] **Step 5: Copy** (laptop)
 
 ```bash
 uv run python -m app.copy_db "sqlite:///$S/cp-export.db" "$(grep '^RAILWAY_DATABASE_URL=' .env | cut -d= -f2-)"
@@ -501,7 +503,9 @@ uv run python -m app.copy_db "sqlite:///$S/cp-export.db" "$(grep '^RAILWAY_DATAB
 
 Expected: profiles 1, experiences 3, achievements 10, skill_categories 3, skills 21, education 1, admin_users 1, others 0. These must match *Starting state*. If anything else changed, re-count on the VM first.
 
-- [ ] **Step 5b: Check the id sequences were reset.** `app.copy_db`'s `setval` has never run against live Postgres, because the live tests were skipped. Check it now, before cutover, rather than finding out from a failed admin create:
+**Result (2026-10-11):** Copied from the backup. The copy printed exactly the expected counts. Then each table was compared row by row and column by column, after SQLAlchemy type conversion: VM live, the backup and Railway are **identical in all 10 tables** (1/1/0/1/3/0/3/10/0/21).
+
+- [x] **Step 5b: Check the id sequences were reset.** `app.copy_db`'s `setval` has never run against live Postgres, because the live tests were skipped. Check it now, before cutover, rather than finding out from a failed admin create:
 
 ```bash
 U="$(grep '^RAILWAY_DATABASE_URL=' .env | cut -d= -f2-)" uv run python -c "
@@ -513,6 +517,8 @@ with e.connect() as c:
 ```
 
 Expected: on every line the two numbers are equal (`last_value` = `max(id)`).
+
+**Result (2026-10-11):** All 10 sequences are correct: the next id is `max(id)+1`, and 1 for the empty tables. This confirms that `setval` works on live Postgres.
 
 - [ ] **Step 6: Parity check.** The resume PDF is generated deterministically from content, so the bytes should be identical:
 
