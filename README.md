@@ -74,15 +74,17 @@ Railway has deprecated `railway.json` ("config as code") in favour of
 
 ### Service variables
 
-Set these on the `career-platform` service under Variables. Never commit them.
+Variables on the `career-platform` service (checked by name 2026-10-26). Never commit their values.
 
-| Variable | Value |
-|---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}`, a reference that resolves to the private-network URL. The app converts `postgresql://` to the psycopg driver itself. |
-| `SESSION_SECRET` | A long random value, e.g. from `python -c "import secrets; print(secrets.token_urlsafe(48))"`. It signs admin session cookies, and the default in `app/config.py` is public. |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Used only by `python -m app.seed` on an empty database. The existing admin user lives in Postgres. |
-| `APP_ENV` | `production` |
-| `SITE_URL` | `https://jacksoncareer.me`, used for the pages' `canonical` and `og:url` tags. |
+| Variable | Set? | Value |
+|---|---|---|
+| `DATABASE_URL` | Yes | `${{Postgres.DATABASE_URL}}`, a reference that resolves to the private-network URL. The app converts `postgresql://` to the psycopg driver itself. |
+| `SESSION_SECRET` | Yes, since 2026-10-26 | A long random value. It signs admin session cookies. **It must be set:** the default in `app/config.py` is public, and anyone could sign an admin cookie with it. To rotate it without printing it: `python3 -c 'import secrets;print(secrets.token_urlsafe(48), end="")' \| railway variable set SESSION_SECRET --stdin -s career-platform`. Rotating logs the admin out. |
+| `SITE_URL` | Yes, since 2026-10-26 | `https://jacksoncareer.me`, used for the pages' `canonical` and `og:url` tags. Unset, they point to `http://127.0.0.1:8000`. |
+| `APP_ENV` | Yes, since 2026-10-26 | `production` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | No, on purpose | Read only by `python -m app.seed` when creating the first admin in an empty database. The existing admin user and its password hash live in Postgres. |
+
+Until 2026-10-26 only `DATABASE_URL` was set, so the site ran on the public default session secret and the wrong canonical URL. See `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`, Task 5 Step 1.
 
 ### Domains and DNS
 
