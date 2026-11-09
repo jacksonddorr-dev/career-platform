@@ -103,3 +103,11 @@ def test_ec2_nginx_redirects_http_and_forwards_proto():
     for directive in ("return 301 https://jacksoncareer.me$request_uri;", "listen 443 ssl;",
                       "proxy_pass http://127.0.0.1:8000;", "proxy_set_header X-Forwarded-Proto $scheme;"):
         assert directive in conf
+
+
+def test_deploy_script_shows_logs_when_restart_fails():
+    # A failed migration makes `systemctl restart` itself fail; under `set -e` that used to
+    # exit before the logs were printed, hiding the reason.
+    script = Path("deploy/deploy.sh").read_text()
+    assert "if ! sudo systemctl restart career-platform; then" in script
+    assert script.count("journalctl -u career-platform") == 1
