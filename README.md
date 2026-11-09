@@ -23,7 +23,41 @@ The Project 1 evidence is indexed in [`docs/project-1-submission.md`](docs/proje
 
 ## Architecture
 
-Diagrams with locations, protocols, ports, and data flow are in [`docs/request-path.md`](docs/request-path.md):
+**Current setup on AWS (since 2026-11-09).** Solid arrows are the web request path; dashed arrows are the parts that never touch the server.
+
+```mermaid
+flowchart LR
+  V["Visitor's browser"]
+  ADMIN["My laptop<br/>SSH key, AWS CLI"]
+
+  subgraph CFZ["Cloudflare (DNS for jacksoncareer.me)"]
+    DNS["DNS<br/>jacksoncareer.me A, aws A → Elastic IP<br/>DNS only"]
+    WWW["www.jacksoncareer.me<br/>proxied, 301 to the root"]
+  end
+
+  subgraph AWS["AWS us-east-1 · default VPC · us-east-1a"]
+    subgraph WEB["career-web-sg · 80 and 443 from anywhere · 22 from my IP"]
+      EIP(["Elastic IP"])
+      NGINX["EC2 t3.micro · Ubuntu 24.04<br/>nginx: TLS (Let's Encrypt),<br/>HTTP → HTTPS"]
+      APP["FastAPI · uvicorn × 2<br/>systemd · 127.0.0.1:8000"]
+    end
+    subgraph DBG["career-db-sg · 5432 from career-web-sg only"]
+      RDS[("RDS PostgreSQL 18.6<br/>Single-AZ · private · encrypted<br/>1-day backups")]
+    end
+  end
+
+  ZOHO["Zoho Mail<br/>MX, SPF, DKIM, DMARC"]
+  GA["Google Analytics 4<br/>after consent"]
+
+  V -. "1 · DNS lookup" .-> DNS
+  V -- "2 · HTTPS 443<br/>(HTTP 80 → 301)" --> EIP --> NGINX -- "HTTP + X-Forwarded-Proto" --> APP -- "SQL over TLS<br/>verify-full · 5432" --> RDS
+  V -. "www" .-> WWW
+  V -. "events, browser → Google" .-> GA
+  ADMIN -- "SSH 22: deploy.sh,<br/>tunnel to RDS" --> EIP
+  DNS -. "MX records" .-> ZOHO
+```
+
+Diagrams with locations, protocols, ports, and data flow for every stage, including Azure and Railway, are in [`docs/request-path.md`](docs/request-path.md):
 
 1. **Azure (historical, 2026-09-29 to 2026-10-11):** browser → Cloudflare DNS (`A 52.159.85.45`) → Azure NSG (22 from my laptop, 80/443 from anywhere) → nginx on 80/443, where TLS ended → uvicorn (2 workers, systemd) on `127.0.0.1:8000` → SQLite file on the VM's disk.
 2. **Railway (historical, 2026-10-11 to 2026-11-06):** browser → Cloudflare DNS (root CNAME, DNS only, flattened) → Railway's edge on 443, where TLS ended → app on port 8080 → PostgreSQL over Railway's private network.
@@ -235,7 +269,7 @@ The site ran on an Azure Ubuntu VM from 2026-09-29 and moved to Railway on 2026-
 - `www` was broken from 2026-10-13 to 2026-10-26.
 - There's no backup of the production database.
 
-Platform deadlines are mine to track too: Railway stops supporting `railway.json` after 2026-12-01.
+Platform deadlines were mine to track too: Railway stopped supporting `railway.json` after 2026-12-01. That no longer matters since the move to AWS.
 
 
 ## Analytics (GA4)
@@ -244,11 +278,11 @@ The site uses Google Analytics 4, measurement ID `G-XWCRC21WXW`, and only after 
 
 **How a visit reaches Google Analytics**
 
-1. Railway serves the page. Every page sets Google's Consent Mode default to `denied` (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization`). Nothing is sent to Google, and `gtag.js` isn't loaded yet.
+1. The server (nginx and the app on EC2) serves the page. Every page sets Google's Consent Mode default to `denied` (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization`). Nothing is sent to Google, and `gtag.js` isn't loaded yet.
 2. The banner asks the visitor. The choice is saved in the browser's `localStorage` as `analytics-consent`, so the banner doesn't reappear on every page.
 3. **Allow:** the page calls `gtag('consent', 'update', {analytics_storage: 'granted'})`, then `gtag('config', 'G-XWCRC21WXW')`, and loads `gtag.js` from `www.googletagmanager.com`. **Decline:** nothing loads, and any `_ga` cookies are deleted.
 4. `gtag.js` sends a `page_view` event, and GA4's **enhanced measurement** adds automatic events, including `click` for links to another domain (`outbound = true`). The site defines no custom events.
-5. Each event is an HTTPS request **from the visitor's browser straight to Google** (`…google-analytics.com/g/collect`). It never passes through Railway or the app, which is why the server logs show none of it.
+5. Each event is an HTTPS request **from the visitor's browser straight to Google** (`…google-analytics.com/g/collect`). It never passes through nginx or the app, which is why the server logs show none of it.
 6. GA4 shows the events in **Realtime** within seconds, and in standard reports later.
 
 **What the checks showed:** on 2026-10-25 at 8:10 PM PDT, after allowing analytics in a private window, I clicked the LinkedIn button. Realtime showed `page_view` for the visit and a `click` event with `link_domain = linkedin.com`, `link_url` set to my LinkedIn profile, and `outbound = true`. Enhanced measurement has Page views and Outbound clicks turned on. Details: `docs/evidence/ex06.md`, section 3.
