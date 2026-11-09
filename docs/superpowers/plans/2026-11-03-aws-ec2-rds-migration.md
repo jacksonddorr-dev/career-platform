@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tick each step and add a dated **Result** line as you go.
 
-> **Status (2026-11-09): in progress, site down.** The Railway trial ended 2026-11-06 before Task 2 ran, so the 2026-10-29 dump is the only data and there's no Railway rollback. Done: Task 3 Steps 1–4 (the RDS settings check still needs reading back) and Task 4 Steps 1–2. Every deviation is logged in `migration-notes.md`. Every stage that creates something or touches production stops for Jackson's approval first.
+> **Status (2026-11-09): Stages A–B done, site still down.** The app runs on EC2 against RDS with the 2026-10-29 data, reachable only through SSH. Next is Task 5, which needs Jackson's Cloudflare token. Railway is gone (no rollback), and Task 2 Step 4 (second copy of the dump) is Jackson's and still open. Deviations are logged in `migration-notes.md`. Every stage that creates something or touches production stops for Jackson's approval first.
 
 **Goal:** Serve https://jacksoncareer.me from an EC2 instance backed by a Single-AZ RDS PostgreSQL database, carrying over all data from Railway, with a tested way back and a tested way out when the course account closes.
 
@@ -160,14 +160,15 @@ Do this even if nothing else is ready. After the trial ends, this may be the onl
 
 - [ ] **Step 1: Dump.** Where: laptop. Open the tunnel with `railway connect Postgres --tunnel-only -P 55432`, sending output to a private temp file because it prints the password. Run `pg_dump --format=custom --no-owner --file ~/backups/career-platform/railway-<UTC>.dump`, then `shasum -a 256` into a `.sha256` file. **Check:** exit 0 and `pg_restore --list` shows 11 `TABLE DATA` entries.
 - [ ] **Step 2: Fingerprint production.** `psql ... -tA -F' ' -f scripts/db_fingerprint.sql > railway.fp`, kept outside the repo. Close the tunnel.
-- [ ] **Step 3: Test the restore locally.** Follow the 2026-10-29 method: a throwaway PostgreSQL 18.6 server on port 55433, using the Cellar binaries in `/opt/homebrew/Cellar/postgresql@18/18.6_1/bin`. Restore with `--no-owner --no-privileges --exit-on-error`. **Check:** `diff` against `railway.fp` is empty. Stop the server and delete its data.
+- [x] **Step 3: Test the restore locally.** Follow the 2026-10-29 method: a throwaway PostgreSQL 18.6 server on port 55433, using the Cellar binaries in `/opt/homebrew/Cellar/postgresql@18/18.6_1/bin`. Restore with `--no-owner --no-privileges --exit-on-error`. **Check:** `diff` against `railway.fp` is empty. Stop the server and delete its data.
+  - **Result (2026-11-09):** Ran on the 2026-10-29 dump, since Railway is gone (`migration-notes.md` D3, D5). Checksum OK; `pg_restore --no-owner --no-privileges --exit-on-error` exit 0. The fingerprint (21 lines) is saved next to the dump as `railway-20261029T220722Z.fp`. All 11 table hashes equal the ones recorded in the 2026-10-29 session, where this restore matched production. Scratch server stopped and deleted.
 - [ ] **Step 4: Second copy.** Jackson copies the dump and checksum to storage they control outside AWS (external drive or private cloud storage). **Check:** `shasum -a 256 -c` passes on the copy.
 
 ---
 
 ## Stage B: Create the AWS foundation — ⛔ **Jackson approves before starting; costs begin here**
 
-### Task 3: Security groups and the RDS database
+### Task 3: Security groups and the RDS database ✅ Done 2026-11-09
 
 RDS comes first because it's the most likely permission failure, and we want to learn that before anything else is built.
 
@@ -187,7 +188,7 @@ RDS comes first because it's the most likely permission failure, and we want to 
   - **Result (2026-11-03):** Created `career-web-sg` (22 from one laptop IP) and `career-db-sg` (5432 from `career-web-sg` only). `describe-security-groups` shows exactly those rules.
 - [x] **Step 3: Create the subnet group.** `aws rds create-db-subnet-group --db-subnet-group-name career-db-subnets --db-subnet-group-description "career-platform" --subnet-ids <us-east-1a subnet> <us-east-1b subnet>`. **Why:** RDS requires two zones even for Single-AZ. **If denied:** stop and take this to the instructor.
   - **Result (2026-11-03):** `career-db-subnets` is `Complete` with subnets in `us-east-1a` and `us-east-1b`.
-- [ ] **Step 4: Create the database.** Read the password into `$MASTER_PW` with `read -s` first.
+- [x] **Step 4: Create the database.** Read the password into `$MASTER_PW` with `read -s` first.
   ```bash
   aws rds create-db-instance --db-instance-identifier career-platform-db \
     --db-instance-class db.t3.micro --engine postgres --engine-version 18.6 \
@@ -202,9 +203,11 @@ RDS comes first because it's the most likely permission failure, and we want to 
   **Why these flags:** same zone as the instance to avoid cross-zone charges; the backup and maintenance windows fall in the US night. **If denied:** read which flag or class the error names; `--storage-encrypted` may need KMS permissions. Don't drop encryption or change the class without Jackson's approval. **Check:** `aws rds wait db-instance-available`, then `describe-db-instances` shows `MultiAZ: false`, `PubliclyAccessible: false`, `EngineVersion: 18.6`, `BackupRetentionPeriod: 1`, `DeletionProtection: true`. **Undo:** remove deletion protection, then `delete-db-instance`.
   - **Result (2026-11-03): ⛔ Blocked, no database created.** `FreeTierRestrictionError`: "The specified backup retention period exceeds the maximum available to free tier customers." So the account is on AWS's free plan. The limit isn't documented anywhere I could find. Jackson chose 1-day backups.
   - **Result (2026-11-03, retry):** AWS accepted `--backup-retention-period 1`. Settings check pending.
-- [ ] **Step 5: Tick the Result lines.** Record the endpoint as `<RDS_ENDPOINT>` only.
+  - **Result (2026-11-09):** Read back: `available`, `db.t3.micro`, 18.6, `MultiAZ: false`, `PubliclyAccessible: false`, encrypted, 20 GB gp3, `BackupRetentionPeriod: 1`, `DeletionProtection: true`, `us-east-1a`, `career-db-sg` active, CA `rds-ca-rsa2048-g1`.
+- [x] **Step 5: Tick the Result lines.** Record the endpoint as `<RDS_ENDPOINT>` only.
 
-### Task 4: EC2, the app, and a rehearsal restore
+  - **Result (2026-11-09):** Done; the endpoint is kept outside the repo.
+### Task 4: EC2, the app, and a rehearsal restore ✅ Done 2026-11-09
 
 **Interfaces:** Consumes Task 1's `deploy/` files, Task 2's `<DUMP>`, and Task 3's endpoint and groups. Produces the running service on `<EIP>`, reachable only through an SSH tunnel until Task 5.
 
@@ -219,24 +222,33 @@ RDS comes first because it's the most likely permission failure, and we want to 
   ```
   **If a flag is denied:** report it. Don't remove it silently. **Check:** `aws ec2 wait instance-status-ok`.
   - **Result (2026-11-03):** Key imported as `career-platform`. Dry run passed, then launched `t3.micro` in `us-east-1a` with Ubuntu 24.04.5. Read back: status checks OK, IMDSv2 required, `CpuCredits=standard`, 20 GB encrypted gp3, `career-web-sg`. SSH works and `uname -m` prints `x86_64`.
-- [ ] **Step 3: Attach an Elastic IP.** `allocate-address --domain vpc`, then `associate-address`. **Why:** without it the public IP changes on every stop and start, and DNS would break. **Undo, and it matters:** `release-address`; an unreleased address keeps billing. **Check:** `ssh -i ~/.ssh/aws_career_platform ubuntu@<EIP> uname -m` prints `x86_64`.
-- [ ] **Step 4: Prepare the server.** Where: EC2. `apt-get update && apt-get -y upgrade`; install `nginx certbot python3-certbot-nginx python3-certbot-dns-cloudflare`; add a 1 GB swapfile in `/etc/fstab`; install uv; set `Unattended-Upgrade::Automatic-Reboot "true"` with `Automatic-Reboot-Time "11:00"` (UTC). Download `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` to `/etc/ssl/certs/rds-global-bundle.pem`. **Check:** `free -h` shows swap; `python3 --version` is 3.12.x.
-- [ ] **Step 5: Create the app login.** Where: laptop, through `ssh -L 55434:<RDS_ENDPOINT>:5432 ubuntu@<EIP>`. Connect as `career_admin` to database `postgres` with `sslmode=require`, then run:
+- [x] **Step 3: Attach an Elastic IP.** `allocate-address --domain vpc`, then `associate-address`. **Why:** without it the public IP changes on every stop and start, and DNS would break. **Undo, and it matters:** `release-address`; an unreleased address keeps billing. **Check:** `ssh -i ~/.ssh/aws_career_platform ubuntu@<EIP> uname -m` prints `x86_64`.
+  - **Result (2026-11-09):** Laptop IP had changed, so the SSH rule was swapped first (`migration-notes.md` D6). Elastic IP allocated and attached; SSH works on it.
+- [x] **Step 4: Prepare the server.** Where: EC2. `apt-get update && apt-get -y upgrade`; install `nginx certbot python3-certbot-nginx python3-certbot-dns-cloudflare`; add a 1 GB swapfile in `/etc/fstab`; install uv; set `Unattended-Upgrade::Automatic-Reboot "true"` with `Automatic-Reboot-Time "11:00"` (UTC). Download `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` to `/etc/ssl/certs/rds-global-bundle.pem`. **Check:** `free -h` shows swap; `python3 --version` is 3.12.x.
+  - **Result (2026-11-09):** Packages installed (nginx 1.24.0, certbot 2.9.0 with the Cloudflare plugin), 1 GB swap, uv 0.13.7, Python 3.12.3, automatic reboot at 11:00 UTC, RDS bundle (114 certificates). No reboot pending.
+- [x] **Step 5: Create the app login.** Where: laptop, through `ssh -L 55434:<RDS_ENDPOINT>:5432 ubuntu@<EIP>`. Connect as `career_admin` to database `postgres` with `sslmode=require`, then run:
   ```sql
   CREATE ROLE career_app LOGIN PASSWORD :'app_pw';
   GRANT career_app TO career_admin;
   ALTER DATABASE career_platform OWNER TO career_app;
   ```
   **Why:** on PostgreSQL 15+ the database owner controls the `public` schema, so migrations work without admin rights. **Check:** `SELECT datcollate FROM pg_database WHERE datname='career_platform'` is `en_US.UTF-8`, matching Railway's sorting. If it differs, stop, because text sorts differently on the site.
-- [ ] **Step 6: Rehearse the restore.** Where: laptop, same tunnel, as `career_app`, using 18.6 tools and `sslmode=require` (`verify-full` can't pass through a tunnel because the hostname differs): `pg_restore --no-owner --no-privileges --exit-on-error <DUMP>`. **Check:** fingerprint output matches the local restore from Task 2 Step 3. Record how long the restore took.
-- [ ] **Step 7: Deploy the code.** Where: EC2. `git clone https://github.com/jacksonddorr-dev/career-platform.git ~/career-platform`, then `git checkout aws-ec2-rds-migration`, and `~/.local/bin/uv sync --locked --no-dev`.
-- [ ] **Step 8: Write `.env` with mode 600.** Must contain `DATABASE_URL=postgresql://career_app:<pw>@<RDS_ENDPOINT>:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem`, a newly generated `SESSION_SECRET`, `SITE_URL=https://jacksoncareer.me`, `APP_ENV=production`. **Why this matters:** missing variables went unnoticed on Railway until 2026-10-26, and the session secret default is public. **Check:** `.venv/bin/python -c "from app.config import get_settings as g; s=g(); print(s.app_env, s.site_url, s.session_secret!='change-me-in-production', s.database_url.split('@')[-1].split('/')[0])"` prints `production`, the site URL, `True`, and the endpoint, with no password.
-- [ ] **Step 9: Install and start the service.** Copy `deploy/career-platform.service` to `/etc/systemd/system/`, `daemon-reload`, `enable --now`. **Check:** `curl -s 127.0.0.1:8000/api/v1/health` returns 200, and `ss -ltnp` shows uvicorn on `127.0.0.1:8000` only.
-- [ ] **Step 10: Check every page.** Use `ssh -L 8000:127.0.0.1:8000`. **Check:** `/`, `/about`, `/experience`, `/projects`, `/skills`, `/education`, `/contact` return 200 with real content, and `/resume.pdf` is a valid PDF.
-- [ ] **Step 11: Test the failure cases.** (a) Reboot: `sudo reboot`. **Check:** same `<EIP>`, service active, health 200, with no manual step. (b) Database outage: temporarily remove the 5432 rule from `career-db-sg`. **Check:** public pages return 503 with the profile and "Projects temporarily unavailable." and no traceback. Restore the rule. **Check:** 200 with projects, no restart. (c) Bad migration: run `deploy.sh` on a scratch branch whose migration raises an error. **Check:** it exits 1, logs show the failure, and `deploy.sh <previous sha>` recovers.
+  - **Result (2026-11-09):** `career_app` created and owns `career_platform`. Collation and ctype `en_US.UTF-8`, encoding UTF8. Connection uses TLS.
+- [x] **Step 6: Rehearse the restore.** Where: laptop, same tunnel, as `career_app`, using 18.6 tools and `sslmode=require` (`verify-full` can't pass through a tunnel because the hostname differs): `pg_restore --no-owner --no-privileges --exit-on-error <DUMP>`. **Check:** fingerprint output matches the local restore from Task 2 Step 3. Record how long the restore took.
+  - **Result (2026-11-09):** Restored the 2026-10-29 dump in 10 s, exit 0. Fingerprint matches `railway-20261029T220722Z.fp` (21 lines). All tables owned by `career_app`; `alembic_version` = `0001_initial`. This is also the final data load (D9).
+- [x] **Step 7: Deploy the code.** Where: EC2. `git clone https://github.com/jacksonddorr-dev/career-platform.git ~/career-platform`, then `git checkout aws-ec2-rds-migration`, and `~/.local/bin/uv sync --locked --no-dev`.
+  - **Result (2026-11-09):** Cloned the branch at `fc760ba`; `uv sync --locked --no-dev` OK.
+- [x] **Step 8: Write `.env` with mode 600.** Must contain `DATABASE_URL=postgresql://career_app:<pw>@<RDS_ENDPOINT>:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem`, a newly generated `SESSION_SECRET`, `SITE_URL=https://jacksoncareer.me`, `APP_ENV=production`. **Why this matters:** missing variables went unnoticed on Railway until 2026-10-26, and the session secret default is public. **Check:** `.venv/bin/python -c "from app.config import get_settings as g; s=g(); print(s.app_env, s.site_url, s.session_secret!='change-me-in-production', s.database_url.split('@')[-1].split('/')[0])"` prints `production`, the site URL, `True`, and the endpoint, with no password.
+  - **Result (2026-11-09):** Mode 600, never printed. Check prints `production`, the site URL, and `True` for the secret, `verify-full`, and an RDS hostname. `alembic current` over `verify-full` reports `0001_initial (head)`.
+- [x] **Step 9: Install and start the service.** Copy `deploy/career-platform.service` to `/etc/systemd/system/`, `daemon-reload`, `enable --now`. **Check:** `curl -s 127.0.0.1:8000/api/v1/health` returns 200, and `ss -ltnp` shows uvicorn on `127.0.0.1:8000` only.
+  - **Result (2026-11-09):** Enabled and active. Health 200. `ss` shows the app on `127.0.0.1:8000` only (nginx's default site on :80, closed by the security group). Snapshot written at boot.
+- [x] **Step 10: Check every page.** Use `ssh -L 8000:127.0.0.1:8000`. **Check:** `/`, `/about`, `/experience`, `/projects`, `/skills`, `/education`, `/contact` return 200 with real content, and `/resume.pdf` is a valid PDF.
+  - **Result (2026-11-09):** All pages plus `/privacy` return 200 with real content; projects come from the database; canonical is `https://jacksoncareer.me/`; `/resume.pdf` is a 1-page PDF.
+- [x] **Step 11: Test the failure cases.** (a) Reboot: `sudo reboot`. **Check:** same `<EIP>`, service active, health 200, with no manual step. (b) Database outage: temporarily remove the 5432 rule from `career-db-sg`. **Check:** public pages return 503 with the profile and "Projects temporarily unavailable." and no traceback. Restore the rule. **Check:** 200 with projects, no restart. (c) Bad migration: run `deploy.sh` on a scratch branch whose migration raises an error. **Check:** it exits 1, logs show the failure, and `deploy.sh <previous sha>` recovers.
 
 ---
 
+  - **Result (2026-11-09):** (a) Reboot: boot time changed, same Elastic IP, app and nginx active, health 200, no manual step. (b) Outage, simulated with the server's firewall instead of the security group (D7): `/`, `/about`, `/projects` 503 with the profile and the outage message, no traceback; `/resume.pdf` 200 from the snapshot; after unblocking, 200 with projects, 0 restarts. (c) Bad migration: the app didn't start, `deploy.sh` exited 1 but printed no reason, so it was fixed (`9fcc825`, D8). Re-run prints the reason and the migration error; rollback to `9fcc825` OK; database fingerprint unchanged; `0001_initial (head)`.
 ## Stage C: Switch — ⛔ **Jackson approves before starting**
 
 ### Task 5: HTTPS before the switch

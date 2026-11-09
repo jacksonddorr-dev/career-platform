@@ -2,15 +2,16 @@
 
 Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Each deviation from the plan gets an entry: what the plan said, what happened, why, and what it affects. This repo is public, so no passwords, IP addresses, or connection strings go here.
 
-## Current state (2026-11-09)
+## Current state (2026-11-09, end of Stage B)
 
 | Thing | State |
 |---|---|
-| Live site | **Down.** `https://jacksoncareer.me` returns Railway's 404 "Application not found". DNS still points at Railway. |
-| Railway | Trial ended 2026-11-06. The `career-platform` service shows *Failed*, and all Postgres deployments are *REMOVED*. The database can't be reached. |
-| Latest data | `railway-20261029T220722Z.dump` on the laptop only (restore-tested 2026-10-29, checksum on file). Nothing newer exists. |
-| AWS | Security groups, subnet group, RDS instance (accepted 2026-11-03), and EC2 instance (running 2026-11-03) exist. No Elastic IP. The RDS settings check hasn't been read back. |
-| Code | Branch `aws-ec2-rds-migration`, nothing committed or pushed. Task 1 not started. |
+| Live site | **Still down.** DNS still points at Railway, which returns 404. |
+| AWS app | Running on EC2 at `9fcc825` under systemd, behind no public port yet: only SSH (22, one laptop IP) is open. Passed the reboot, database-outage, and bad-migration tests. |
+| AWS database | RDS 18.6, Single-AZ, private, encrypted, 1-day backups, deletion protection. Holds the 2026-10-29 data; fingerprint matches the reference. |
+| Data | `railway-20261029T220722Z.dump` plus `.sha256` and `.fp` in `~/backups/career-platform/`. **The second copy outside the laptop (Task 2 Step 4) is still open.** |
+| Code | Branch `aws-ec2-rds-migration` pushed (`fc760ba`, `9fcc825`). Not merged to `main`. |
+| Next | Task 5 (HTTPS), which needs a Cloudflare API token from Jackson. |
 
 ## Deviations
 
@@ -42,3 +43,23 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 - **Plan:** Task 2 Step 2 fingerprints production on Railway, and later steps compare against that.
 - **What happened:** Railway is gone, and the 2026-10-29 fingerprint files were in a temporary folder that no longer exists.
 - **Affects:** the reference fingerprint now comes from restoring the 2026-10-29 dump locally. That's equivalent: on 2026-10-29 the local restore of this dump matched production exactly (all 11 tables and 10 sequences).
+
+### D6 — Laptop IP changed; SSH rule replaced (2026-11-09)
+- **Plan:** port 22 allowed from the laptop's IP, set once in Task 3 Step 2.
+- **What happened:** the laptop's public IP changed between 2026-11-03 and 2026-11-09, so SSH would have been refused. The old `/32` rule was replaced with the current one before continuing.
+- **Affects:** this will happen again whenever the IP changes. Fix: `authorize-security-group-ingress` for the new IP, then `revoke-security-group-ingress` for the old one, on `career-web-sg`.
+
+### D7 — Database-outage test used the server's firewall, not the security group (2026-11-09)
+- **Plan:** Task 4 Step 11(b), remove the 5432 rule from `career-db-sg`.
+- **What happened:** security groups track open connections, so removing the rule wouldn't cut the app's existing pooled connections, and the test could falsely pass. Instead, `iptables` on the EC2 instance rejected outbound 5432, with a 3-minute automatic undo as a safety net, then was removed by hand after about a second.
+- **Affects:** nothing in AWS changed. The test is stricter than the plan's version, because it cuts existing connections too.
+
+### D8 — `deploy.sh` hid the reason for a failed deploy; fixed (2026-11-09)
+- **Plan:** Task 1 Step 9, `deploy.sh` prints the last 30 log lines and exits 1 on failure.
+- **What happened:** with a failing migration, `systemctl restart` itself fails, and `set -e` exited before the logs were printed. The bad-migration test (Task 4 Step 11c) found this. Fixed with a test in `9fcc825`, then verified by re-running the test.
+- **Also learned:** on a single server, a failed deploy takes the site down until you roll back with `./deploy/deploy.sh <previous ref>`. There's no old version still serving.
+
+### D9 — No separate final data load at cutover (2026-11-09)
+- **Plan:** Task 6 Steps 2–3, take a fresh Railway dump at cutover, then drop and re-restore RDS.
+- **What happened:** Railway is gone (D3), and Jackson confirmed no edits after 2026-10-29. So Task 4 Step 6's restore of the 2026-10-29 dump is already the final data.
+- **Affects:** Task 6 Steps 2–3 become "check the RDS fingerprint still matches the reference" instead of re-restoring. Admin edits must still wait until after the switch.
