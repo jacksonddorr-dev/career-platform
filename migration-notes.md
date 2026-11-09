@@ -2,16 +2,16 @@
 
 Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Each deviation from the plan gets an entry: what the plan said, what happened, why, and what it affects. This repo is public, so no passwords, IP addresses, or connection strings go here.
 
-## Current state (2026-11-09, end of Stage B)
+## Current state (2026-11-09, after cutover)
 
 | Thing | State |
 |---|---|
-| Live site | **Still down.** DNS still points at Railway, which returns 404. |
-| AWS app | Running on EC2 at `9fcc825` under systemd, behind no public port yet: HTTPS on 443 and HTTP→HTTPS on 80 are open with a valid Let's Encrypt certificate; SSH on 22 from one laptop IP. Passed the reboot, database-outage, and bad-migration tests. |
-| AWS database | RDS 18.6, Single-AZ, private, encrypted, 1-day backups, deletion protection. Holds the 2026-10-29 data; fingerprint matches the reference. |
-| Data | `railway-20261029T220722Z.dump` plus `.sha256` and `.fp` in `~/backups/career-platform/`. **The second copy outside the laptop (Task 2 Step 4) is still open.** |
-| Code | Branch `aws-ec2-rds-migration` pushed (`fc760ba`, `9fcc825`). Not merged to `main`. |
-| Next | Jackson's admin-login check, then Task 6 (DNS switch) with Jackson's approval. Task 7 Step 1 due before 2026-11-17. |
+| Live site | **Up on AWS** since the DNS switch, around 2026-11-09 23:06 UTC. Down from the Railway trial's end (2026-11-06) until then. |
+| DNS | Root is `A` to the Elastic IP, DNS only. All other records are identical to the pre-switch snapshot. |
+| AWS app | EC2, `9fcc825`, behind nginx with a Let's Encrypt certificate valid until 2027-02-07. |
+| AWS database | RDS 18.6, Single-AZ, private, 1-day backups, deletion protection. Data matches the 2026-10-29 reference. |
+| Still open for Jackson | Admin-login cookie check; Gmail send and reply; GA4 Realtime; second copy of the dump outside the laptop. |
+| Next | Task 7. **Step 1 (switch renewal to HTTP, delete the Cloudflare token) is due before 2026-11-17.** No admin edits until then. |
 
 ## Deviations
 

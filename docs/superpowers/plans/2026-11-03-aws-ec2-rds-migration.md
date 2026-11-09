@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tick each step and add a dated **Result** line as you go.
 
-> **Status (2026-11-09): Stages A–B done; Task 5 done except Jackson's admin-login check; site still down.** HTTPS works on the Elastic IP with a real certificate. Next is Task 6 (DNS switch), which needs Jackson's approval. Task 7 Step 1 is due before 2026-11-17 (token expiry). Railway is gone (no rollback). Task 2 Step 4 (second copy of the dump) is Jackson's and still open. Deviations are logged in `migration-notes.md`.
+> **Status (2026-11-09): live on AWS since about 2026-11-09 23:06 UTC.** Tasks 1, 3, 4, 5 done; Task 6 done except Jackson's checks (admin login, Gmail send and reply, GA4 Realtime). Next is Task 7. **Step 1 is due before 2026-11-17 (token expiry).** No admin edits until Task 7. Task 2 Step 4 (second copy of the dump) is Jackson's and still open. Deviations are logged in `migration-notes.md`.
 
 **Goal:** Serve https://jacksoncareer.me from an EC2 instance backed by a Single-AZ RDS PostgreSQL database, carrying over all data from Railway, with a tested way back and a tested way out when the course account closes.
 
@@ -270,10 +270,14 @@ RDS comes first because it's the most likely permission failure, and we want to 
 
 **Rollback until Task 7:** change the root record back to the saved Railway CNAME. It works only while the Railway trial is alive, and any edits made on RDS after the switch would be lost, so **no admin edits until Task 7.**
 
-- [ ] **Step 1: Record the starting DNS.** Save `dig` output through `1.1.1.1` for root, `www`, MX, and the SPF, DKIM, and DMARC TXT records, plus the current root CNAME target, in `dns-before.txt`, outside the repo.
-- [ ] **Step 2: Freeze edits and repeat the Task 2 dump.** Jackson makes no admin edits from here. Fingerprint production again. If it differs from `railway.fp`, take a new dump. Close the tunnel.
-- [ ] **Step 3: Load the final data.** Stop the app. As `career_admin` through the tunnel: `DROP DATABASE career_platform WITH (FORCE); CREATE DATABASE career_platform OWNER career_app;`. Restore as `career_app`. **Check:** fingerprint equals the Step 2 production fingerprint. Start the app, repeat Task 5 Step 3. **Deletion protection** applies to the instance, not this drop, so double-check you're connected through port 55434 to `career_platform`.
-- [ ] **Step 4: Switch DNS.** Jackson, in Cloudflare: replace the root `CNAME` with `A jacksoncareer.me <EIP>`, **DNS only**, TTL Auto. Nothing else changes.
+- [x] **Step 1: Record the starting DNS.** Save `dig` output through `1.1.1.1` for root, `www`, MX, and the SPF, DKIM, and DMARC TXT records, plus the current root CNAME target, in `dns-before.txt`, outside the repo.
+  - **Result (2026-11-09):** Saved to `~/backups/career-platform/dns-before-20261109.txt` (outside the repo): `dig` answers through 1.1.1.1 plus the full Cloudflare record list (10 records; root was `CNAME ctxkvml3.up.railway.app`, DNS only). The zsh word-splitting bug emptied the first attempt's `dig` answers; it was rerun in bash.
+- [x] **Step 2: Freeze edits and repeat the Task 2 dump.** Jackson makes no admin edits from here. Fingerprint production again. If it differs from `railway.fp`, take a new dump. Close the tunnel.
+  - **Result (2026-11-09):** Replaced by D9: Railway is gone and there were no edits after 2026-10-29. Jackson makes no admin edits until Task 7.
+- [x] **Step 3: Load the final data.** Stop the app. As `career_admin` through the tunnel: `DROP DATABASE career_platform WITH (FORCE); CREATE DATABASE career_platform OWNER career_app;`. Restore as `career_app`. **Check:** fingerprint equals the Step 2 production fingerprint. Start the app, repeat Task 5 Step 3. **Deletion protection** applies to the instance, not this drop, so double-check you're connected through port 55434 to `career_platform`.
+  - **Result (2026-11-09):** Replaced by D9: no re-restore. The RDS fingerprint still matches the reference (21 lines); HTTPS health 200 before the switch.
+- [x] **Step 4: Switch DNS.** Jackson, in Cloudflare: replace the root `CNAME` with `A jacksoncareer.me <EIP>`, **DNS only**, TTL Auto. Nothing else changes.
+  - **Result (2026-11-09):** Jackson replaced the root CNAME with `A jacksoncareer.me <EIP>`, DNS only, TTL Auto. Verified around 2026-11-09 23:06 UTC: 1.1.1.1, 8.8.8.8, and Cloudflare's own nameserver all answer `<EIP>`; Cloudflare still has 10 records.
 - [ ] **Step 5: Verify from outside.**
   - `dig @1.1.1.1 +short jacksoncareer.me` returns `<EIP>`.
   - `curl -sI https://jacksoncareer.me/` returns 200 and the certificate verifies; every page and `/resume.pdf` return 200.
@@ -282,6 +286,7 @@ RDS comes first because it's the most likely permission failure, and we want to 
   - A consented visit appears in GA4 Realtime.
   - Comparing against `dns-before.txt`, the `www`, MX, SPF, DKIM, and DMARC answers are unchanged.
   - Jackson sends a test message from Gmail to `jackson@jacksoncareer.me` and replies. **Check:** both arrive.
+  - **Result (2026-11-09):** Without `--resolve`: HTTPS reaches `<EIP>`, certificate verifies (Let's Encrypt `YE1`, until 2027-02-07); every page plus `/privacy` 200; `/resume.pdf` a 1-page PDF; canonical `https://jacksoncareer.me/`; GA4 tag `G-XWCRC21WXW` present; HTTP returns 301 to HTTPS; `www` (http and https) returns 301 to the root keeping path and query. AAAA, `www`, MX, SPF, Zoho verification, DMARC, DKIM, `_railway-verify`, CAA, and NS are identical to the snapshot. **Still open:** Jackson's Gmail send and reply, and GA4 Realtime.
 - [ ] **Step 6: Confirm the app sees real traffic.** `journalctl -u career-platform` and the nginx access log on EC2 show the requests from Step 5.
 
 ---
