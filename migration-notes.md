@@ -10,8 +10,8 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 | DNS | Root is `A` to the Elastic IP, DNS only. All other records are identical to the pre-switch snapshot. |
 | AWS app | EC2, `9fcc825`, behind nginx with a Let's Encrypt certificate valid until 2027-02-07. |
 | AWS database | RDS 18.6, Single-AZ, private, 1-day backups, deletion protection. Data matches the 2026-10-29 reference. |
-| Still open for Jackson | Admin-login cookie check; delete the Cloudflare token in the dashboard; second copy of the dump outside the laptop. |
-| Next | Task 7 Step 1 done on the server. Steps 2–4 (restore test, monitoring, docs) in progress. Merge to `main` and Railway deletion need Jackson's approval. |
+| Still open for Jackson | Admin-login cookie check; second copy of the dump outside the laptop; uptime monitor and budget alert; approve deleting Railway. |
+| Next | Task 7: Steps 1, 2, 4, 5 done (renewal off the token and token deleted; restore test; docs; merged to `main`). Step 3 (monitoring) is Jackson's. Step 6 (delete Railway) waits for 48 clean hours and Jackson's approval. |
 
 ## Deviations
 
