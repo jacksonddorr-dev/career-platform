@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tick each step and add a dated **Result** line as you go.
 
-> **Status (2026-11-09): Stages A–B done, site still down.** The app runs on EC2 against RDS with the 2026-10-29 data, reachable only through SSH. Next is Task 5, which needs Jackson's Cloudflare token. Railway is gone (no rollback), and Task 2 Step 4 (second copy of the dump) is Jackson's and still open. Deviations are logged in `migration-notes.md`. Every stage that creates something or touches production stops for Jackson's approval first.
+> **Status (2026-11-09): Stages A–B done; Task 5 done except Jackson's admin-login check; site still down.** HTTPS works on the Elastic IP with a real certificate. Next is Task 6 (DNS switch), which needs Jackson's approval. Task 7 Step 1 is due before 2026-11-17 (token expiry). Railway is gone (no rollback). Task 2 Step 4 (second copy of the dump) is Jackson's and still open. Deviations are logged in `migration-notes.md`.
 
 **Goal:** Serve https://jacksoncareer.me from an EC2 instance backed by a Single-AZ RDS PostgreSQL database, carrying over all data from Railway, with a tested way back and a tested way out when the course account closes.
 
@@ -253,14 +253,18 @@ RDS comes first because it's the most likely permission failure, and we want to 
 
 ### Task 5: HTTPS before the switch
 
-- [ ] **Step 1: Issue the certificate through DNS.** Jackson creates a Cloudflare API token limited to DNS Edit on `jacksoncareer.me`, saved to `/root/.secrets/cloudflare.ini` with mode 600. Check no `CAA` record blocks Let's Encrypt. Run `sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/cloudflare.ini -d jacksoncareer.me`. **Why:** the site's DNS still points at Railway, so the usual HTTP challenge can't reach this server yet. **Check:** files exist under `/etc/letsencrypt/live/jacksoncareer.me/`, and certbot added a temporary `_acme-challenge` record and removed it.
-- [ ] **Step 2: Install nginx config and open the ports.** Install `deploy/nginx-career-platform.conf` as the only enabled site; `nginx -t`; reload. Add 80 and 443 from `0.0.0.0/0` (and `::/0` only if the instance gets IPv6) to `career-web-sg`.
+- [x] **Step 1: Issue the certificate through DNS.** Jackson creates a Cloudflare API token limited to DNS Edit on `jacksoncareer.me`, saved to `/root/.secrets/cloudflare.ini` with mode 600. Check no `CAA` record blocks Let's Encrypt. Run `sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/cloudflare.ini -d jacksoncareer.me`. **Why:** the site's DNS still points at Railway, so the usual HTTP challenge can't reach this server yet. **Check:** files exist under `/etc/letsencrypt/live/jacksoncareer.me/`, and certbot added a temporary `_acme-challenge` record and removed it.
+  - **Result (2026-11-09):** Jackson created the token in the dashboard: DNS Edit on this zone only, restricted to the Elastic IP, expiring 2026-11-17 07:59 UTC (D11). File is `600 root`. Cloudflare verify: active, zone visible. No CAA record. A dry run passed, then the real certificate was issued: CN `jacksoncareer.me`, Let's Encrypt `YE1`, expires 2027-02-07. 0 leftover `_acme-challenge` records. Renewal is still set to `dns-cloudflare` until Task 7 Step 1.
+- [x] **Step 2: Install nginx config and open the ports.** Install `deploy/nginx-career-platform.conf` as the only enabled site; `nginx -t`; reload. Add 80 and 443 from `0.0.0.0/0` (and `::/0` only if the instance gets IPv6) to `career-web-sg`.
+  - **Result (2026-11-09):** Only site enabled is `career-platform` (default removed); `nginx -t` OK; reloaded. 80 and 443 opened to `0.0.0.0/0`; no IPv6 on the instance, so no `::/0`.
 - [ ] **Step 3: Test without touching DNS.**
   ```bash
   curl -sI --resolve jacksoncareer.me:443:<EIP> https://jacksoncareer.me/
   curl -sI --resolve jacksoncareer.me:80:<EIP> http://jacksoncareer.me/about
   ```
   **Check:** HTTPS 200 with a valid certificate; HTTP 301 to `https://jacksoncareer.me/about`. Run the same for every page. Log in with a `--resolve` POST using Jackson's password. **Check:** the `Set-Cookie` header has `Secure` and `HttpOnly`, and an admin read returns 200.
+
+  - **Result (2026-11-09):** All checks pass except one. Certificate verifies; TLS 1.0 and 1.1 refused; every page plus `/privacy` 200 with real content; canonical and `og:url` are `https://jacksoncareer.me/`; HTTP returns 301 to HTTPS keeping path and query; `/admin` 401 unauthenticated; wrong password 401 with no cookie. **Still open:** a real admin login to confirm `Secure; HttpOnly` on the cookie. Needs Jackson's password.
 
 ### Task 6: Cutover
 
@@ -286,7 +290,7 @@ RDS comes first because it's the most likely permission failure, and we want to 
 
 ### Task 7: Harden, document, merge, retire Railway
 
-- [ ] **Step 1: Move renewal to HTTP and remove the token.** After DNS has settled: `sudo certbot reconfigure --cert-name jacksoncareer.me --nginx`, then `sudo certbot renew --dry-run`. **Check:** the dry run succeeds using HTTP. Delete `/root/.secrets/cloudflare.ini` and revoke the token in Cloudflare. **Why:** a compromised server holding that token could rewrite your DNS, including mail.
+- [ ] **Step 1: Move renewal to HTTP and remove the token.** **⏰ Must be done before 2026-11-17 07:59 UTC, when the token expires.** Otherwise the renewal around January fails. After DNS has settled: `sudo certbot reconfigure --cert-name jacksoncareer.me --nginx`, then `sudo certbot renew --dry-run`. **Check:** the dry run succeeds using HTTP. Delete `/root/.secrets/cloudflare.ini` and revoke the token in Cloudflare. **Why:** a compromised server holding that token could rewrite your DNS, including mail.
 - [ ] **Step 2: Test an RDS restore.** Run `aws rds restore-db-instance-to-point-in-time` to a temporary `career-platform-db-drill` in the same subnet group, with the same security group, fingerprint it through the tunnel, then delete it **with no final snapshot**. **Why:** a backup isn't proven until it has been restored. Costs a few cents. **Check:** `describe-db-instances` no longer lists the drill instance.
 - [ ] **Step 3: Set up monitoring.** Jackson adds a free external uptime check on `/api/v1/health` with email alerts. Ask whoever has billing access to set a budget alert (see *Questions for the instructor*).
 - [ ] **Step 4: Update the record.** Revise `README.md` (live architecture, deploys, variables, domains, costs, limitations, including "No database backup"), `docs/request-path.md`, and add `docs/evidence/aws-migration.md` with commands and results, no secrets. `uv run pytest`.

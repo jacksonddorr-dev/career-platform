@@ -7,11 +7,11 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 | Thing | State |
 |---|---|
 | Live site | **Still down.** DNS still points at Railway, which returns 404. |
-| AWS app | Running on EC2 at `9fcc825` under systemd, behind no public port yet: only SSH (22, one laptop IP) is open. Passed the reboot, database-outage, and bad-migration tests. |
+| AWS app | Running on EC2 at `9fcc825` under systemd, behind no public port yet: HTTPS on 443 and HTTP→HTTPS on 80 are open with a valid Let's Encrypt certificate; SSH on 22 from one laptop IP. Passed the reboot, database-outage, and bad-migration tests. |
 | AWS database | RDS 18.6, Single-AZ, private, encrypted, 1-day backups, deletion protection. Holds the 2026-10-29 data; fingerprint matches the reference. |
 | Data | `railway-20261029T220722Z.dump` plus `.sha256` and `.fp` in `~/backups/career-platform/`. **The second copy outside the laptop (Task 2 Step 4) is still open.** |
 | Code | Branch `aws-ec2-rds-migration` pushed (`fc760ba`, `9fcc825`). Not merged to `main`. |
-| Next | Task 5 (HTTPS), which needs a Cloudflare API token from Jackson. |
+| Next | Jackson's admin-login check, then Task 6 (DNS switch) with Jackson's approval. Task 7 Step 1 due before 2026-11-17. |
 
 ## Deviations
 
@@ -63,3 +63,13 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 - **Plan:** Task 6 Steps 2–3, take a fresh Railway dump at cutover, then drop and re-restore RDS.
 - **What happened:** Railway is gone (D3), and Jackson confirmed no edits after 2026-10-29. So Task 4 Step 6's restore of the 2026-10-29 dump is already the final data.
 - **Affects:** Task 6 Steps 2–3 become "check the RDS fingerprint still matches the reference" instead of re-restoring. Admin edits must still wait until after the switch.
+
+### D10 — certbot account registered without an email (2026-11-09)
+- **Plan:** Task 5 Step 1 didn't say.
+- **What happened:** certbot ran with `--register-unsafely-without-email`, so Let's Encrypt has no contact address for this certificate.
+- **Affects:** no expiry warnings by email. Expiry is covered instead by certbot's renewal timer and the uptime check in Task 7 Step 3. Add an email later with `certbot update_account --email ...` if wanted.
+
+### D11 — The Cloudflare token expires, which sets a deadline (2026-11-09)
+- **Plan:** Task 5 Step 1, a token restricted to DNS Edit on this zone. Task 7 Step 1 removes it "after DNS has settled", with no date.
+- **What happened:** Jackson also restricted the token to the server's Elastic IP and set it to expire 2026-11-17 07:59 UTC (end of 2026-11-16 Pacific). That's safer, but renewal is still set to use the token.
+- **Affects:** Task 7 Step 1 (switch renewal to HTTP, delete the token) must happen **before 2026-11-17**. The certificate itself lasts until 2027-02-07.
