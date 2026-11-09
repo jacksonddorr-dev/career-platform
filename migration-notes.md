@@ -10,8 +10,8 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 | DNS | Root is `A` to the Elastic IP, DNS only. All other records are identical to the pre-switch snapshot. |
 | AWS app | EC2, `9fcc825`, behind nginx with a Let's Encrypt certificate valid until 2027-02-07. |
 | AWS database | RDS 18.6, Single-AZ, private, 1-day backups, deletion protection. Data matches the 2026-10-29 reference. |
-| Still open for Jackson | Admin-login cookie check; Gmail send and reply; GA4 Realtime; second copy of the dump outside the laptop. |
-| Next | Task 7. **Step 1 (switch renewal to HTTP, delete the Cloudflare token) is due before 2026-11-17.** No admin edits until then. |
+| Still open for Jackson | Admin-login cookie check; delete the Cloudflare token in the dashboard; second copy of the dump outside the laptop. |
+| Next | Task 7 Step 1 done on the server. Steps 2–4 (restore test, monitoring, docs) in progress. Merge to `main` and Railway deletion need Jackson's approval. |
 
 ## Deviations
 
@@ -73,3 +73,19 @@ Running log for `docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`. Ea
 - **Plan:** Task 5 Step 1, a token restricted to DNS Edit on this zone. Task 7 Step 1 removes it "after DNS has settled", with no date.
 - **What happened:** Jackson also restricted the token to the server's Elastic IP and set it to expire 2026-11-17 07:59 UTC (end of 2026-11-16 Pacific). That's safer, but renewal is still set to use the token.
 - **Affects:** Task 7 Step 1 (switch renewal to HTTP, delete the token) must happen **before 2026-11-17**. The certificate itself lasts until 2027-02-07.
+
+### D12 — Renewal switched to `webroot`, not the nginx plugin (2026-11-09)
+- **Plan:** Task 7 Step 1, `certbot reconfigure --cert-name jacksoncareer.me --nginx`.
+- **What happened:** used `--webroot -w /var/www/html --deploy-hook "systemctl reload nginx"`. The nginx plugin can rewrite nginx config, and ours is committed as `deploy/nginx-career-platform.conf`. That config already serves `/.well-known/acme-challenge/` from `/var/www/html` for exactly this.
+- **Affects:** nothing else. Same HTTP challenge, the committed config stays in charge, and the dry run passed both with and without the token.
+
+### D13 — Added `aws.jacksoncareer.me` (2026-11-09)
+- **Plan:** no extra DNS records. Task 6 changed only the root record.
+- **What happened:** at Jackson's request, the Cloudflare CLI added `A aws.jacksoncareer.me → <EIP>`, DNS only, TTL Auto, comment "EC2 Elastic IP (career-platform)". A before-and-after diff of the zone shows exactly one record added and none removed or changed (10 → 11). It resolved from Cloudflare's nameserver, 1.1.1.1, and 8.8.8.8 within about 5 seconds.
+- **Affects:** `http://aws.jacksoncareer.me` gets nginx's redirect to `https://jacksoncareer.me/`. **`https://aws.jacksoncareer.me` fails certificate checks**, because the certificate covers only `jacksoncareer.me`. Fixing that needs the name on the certificate and in nginx's `server_name`. Task 8 must delete this record when leaving AWS, along with the root record's change.
+
+### D14 — HTTPS for `aws.jacksoncareer.me` (2026-11-09)
+- **Plan:** one certificate, for `jacksoncareer.me` only.
+- **What happened:** at Jackson's request, certbot issued a **separate** certificate for `aws.jacksoncareer.me` over the HTTP challenge (dry run first). It uses `webroot` and `renew_hook = systemctl reload nginx`, and expires 2027-02-07. `deploy/nginx-career-platform.conf` gained two server blocks for that name, test first: port 80 answers Let's Encrypt and otherwise returns 301 to `https://aws.jacksoncareer.me$request_uri`; 443 serves the same app with the new certificate. The live config was backed up in `/root` and reloaded only after `nginx -t` passed.
+- **Checked:** `https://aws.jacksoncareer.me/` 200 with a verifying certificate; HTTP returns 301 to HTTPS on the same name, keeping path and query; canonical stays `https://jacksoncareer.me/`; the main site, its certificate, and the `www` redirect unchanged.
+- **Affects:** two certificates to renew instead of one; both use the HTTP challenge. Task 8 removes this record (D13).

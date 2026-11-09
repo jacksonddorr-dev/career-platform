@@ -111,3 +111,13 @@ def test_deploy_script_shows_logs_when_restart_fails():
     script = Path("deploy/deploy.sh").read_text()
     assert "if ! sudo systemctl restart career-platform; then" in script
     assert script.count("journalctl -u career-platform") == 1
+
+
+def test_ec2_nginx_serves_aws_name_over_https_with_its_own_certificate():
+    conf = Path("deploy/nginx-career-platform.conf").read_text()
+    for directive in ("server_name aws.jacksoncareer.me;",
+                      "return 301 https://aws.jacksoncareer.me$request_uri;",
+                      "ssl_certificate /etc/letsencrypt/live/aws.jacksoncareer.me/fullchain.pem;"):
+        assert directive in conf
+    # Both names keep answering Let's Encrypt's HTTP renewal checks.
+    assert conf.count("location /.well-known/acme-challenge/") == 2

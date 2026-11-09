@@ -2,20 +2,20 @@
 
 **Live site: https://jacksoncareer.me** (`www.jacksoncareer.me` redirects there)
 
-My personal career site: a FastAPI app that shows my profile, experience, education, skills, and projects, and a downloadable résumé PDF, all read from a database when the page is requested. A small authenticated admin API edits the content. It started in Codespaces in September 2026, ran on an Azure Ubuntu VM with nginx, systemd, and SQLite, and since 2026-10-11 runs on Railway with PostgreSQL. Email for the domain goes through Zoho Mail, and visits are measured with Google Analytics 4 after the visitor consents.
+My personal career site: a FastAPI app that shows my profile, experience, education, skills, and projects, and a downloadable résumé PDF, all read from a database when the page is requested. A small authenticated admin API edits the content. It started in Codespaces in September 2026, ran on an Azure Ubuntu VM with nginx, systemd, and SQLite, then on Railway with PostgreSQL from 2026-10-11, and since 2026-11-09 runs on AWS: an EC2 instance with nginx and systemd, and an RDS PostgreSQL database. Email for the domain goes through Zoho Mail, and visits are measured with Google Analytics 4 after the visitor consents.
 
 The Project 1 evidence is indexed in [`docs/project-1-submission.md`](docs/project-1-submission.md).
 
 **Contents**
 
 - Set up and run locally: [Local development](#local-development), [Checks](#checks)
-- Update the live site: [Deploys](#deploys) (every push to `main` deploys), [Service variables](#service-variables)
+- Update the live site: [Deploys](#deploys) (manual, with `deploy/deploy.sh`), [Server configuration](#server-configuration)
 - [Architecture](#architecture): web, email, and analytics paths
 - [Domains and DNS](#domains-and-dns)
 - Outages and rollback: [Snapshot fallback and recovery](#snapshot-fallback-and-recovery), [Rolling back a bad change](#rolling-back-a-bad-change)
-- Migration: [How the migration preserved the data](#how-the-migration-preserved-the-data), [Azure to Railway: who manages what](#azure-to-railway-who-manages-what)
+- Migration: [Railway to AWS](#railway-to-aws-2026-11-09), [How the migration preserved the data](#how-the-migration-preserved-the-data), [Azure to Railway: who manages what](#azure-to-railway-who-manages-what)
 - [Analytics (GA4)](#analytics-ga4)
-- [Decisions](#decisions): Railway migration, managed email
+- [Decisions](#decisions): Railway migration, managed email, EC2 + RDS on AWS
 - [Costs, credits, and cleanup](#costs-credits-and-cleanup)
 - [Investigated failures](#investigated-failures) and [Remaining limitations](#remaining-limitations)
 - [Reflection](#reflection)
@@ -26,9 +26,10 @@ The Project 1 evidence is indexed in [`docs/project-1-submission.md`](docs/proje
 Diagrams with locations, protocols, ports, and data flow are in [`docs/request-path.md`](docs/request-path.md):
 
 1. **Azure (historical, 2026-09-29 to 2026-10-11):** browser → Cloudflare DNS (`A 52.159.85.45`) → Azure NSG (22 from my laptop, 80/443 from anywhere) → nginx on 80/443, where TLS ended → uvicorn (2 workers, systemd) on `127.0.0.1:8000` → SQLite file on the VM's disk.
-2. **Railway (current):** browser → Cloudflare DNS (root CNAME, DNS only, flattened) → Railway's edge on 443, where TLS ends → app on port 8080 → PostgreSQL over Railway's private network. `www` is answered by Cloudflare's edge with a 301 to the root.
-3. **Email:** Gmail → MX lookup → Zoho's MX servers (SMTP 25) → my mailbox. Replies go out through Zoho's servers, and receivers check SPF, DKIM, and DMARC in Cloudflare DNS.
-4. **Analytics:** after the visitor allows it, the browser loads `gtag.js` from Google and sends events straight to Google Analytics over HTTPS, never through Railway.
+2. **Railway (historical, 2026-10-11 to 2026-11-06):** browser → Cloudflare DNS (root CNAME, DNS only, flattened) → Railway's edge on 443, where TLS ended → app on port 8080 → PostgreSQL over Railway's private network.
+3. **AWS (current, since 2026-11-09), `us-east-1`:** browser → Cloudflare DNS (root `A` to an Elastic IP, DNS only) → security group `career-web-sg` (80/443 from anywhere, 22 from my laptop only) → nginx on the EC2 instance, where TLS ends (Let's Encrypt) → uvicorn (2 workers, systemd) on `127.0.0.1:8000` → RDS PostgreSQL 18.6 on port 5432 over TLS (`verify-full`), reachable only from `career-web-sg`. `www` is answered by Cloudflare's edge with a 301 to the root.
+4. **Email:** Gmail → MX lookup → Zoho's MX servers (SMTP 25) → my mailbox. Replies go out through Zoho's servers, and receivers check SPF, DKIM, and DMARC in Cloudflare DNS.
+5. **Analytics:** after the visitor allows it, the browser loads `gtag.js` from Google and sends events straight to Google Analytics over HTTPS, never through the server.
 
 ## Local development
 
@@ -72,102 +73,91 @@ environment doesn't include the test tools.
 the variable at a **scratch** database only. The fixture refuses any database
 that is already migrated or has rows, so it can't run against production.
 
-## Production on Railway
+## Production on AWS
 
-The site runs on [Railway](https://railway.com) in the project
-`prolific-enthusiasm`, environment `production`, with two services:
+Since 2026-11-09 the site runs in AWS account resources tagged `Project=career-platform`, region `us-east-1`, profile `isba-4775`. The account belongs to the course and closes at the end of the term (see *Leaving AWS* below).
 
-| Service | What it is |
+| Resource | What it is |
 |---|---|
-| `career-platform` | This app, built from GitHub `main` |
-| `Postgres` | Railway-managed PostgreSQL, the app's only database |
+| EC2 `career-platform` | `t3.micro`, Ubuntu 24.04, 20 GB encrypted gp3, IMDSv2 required, `CpuCredits=standard`, in `us-east-1a`, with an Elastic IP |
+| RDS `career-platform-db` | PostgreSQL 18.6, `db.t3.micro`, **Single-AZ**, not publicly accessible, encrypted, 1-day automated backups, deletion protection, in `us-east-1a` |
+| Security groups | `career-web-sg`: 80 and 443 from anywhere, 22 from my laptop's IP only. `career-db-sg`: 5432 from `career-web-sg` only. |
+| Database logins | `career_admin` (RDS master, used only from the laptop) and `career_app` (the app; owns the `career_platform` database) |
+
+How it was built, step by step with results: [`docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md). Every departure from that plan: [`migration-notes.md`](migration-notes.md).
 
 ### Deploys
 
-**Every push to `main` deploys to production automatically**, because the
-service is connected to `jacksonddorr-dev/career-platform`. Push to a branch if
-you aren't ready to ship.
+**Pushing to GitHub does not deploy.** Deploys are manual, over SSH:
 
-- **Build:** Railpack, configured in `railway.json`. It installs with
-  `uv sync --locked --no-dev`, using Python from `.python-version`.
-- **Start:** `scripts/start.sh` runs `alembic upgrade head` on every boot,
-  writes the content snapshot with `python -m app.snapshot`, then runs
-  `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2`. Railway sets
-  `PORT` (currently 8080).
-- **Health check:** Railway waits for `GET /api/v1/health` to return 200 before
-  it switches traffic to a new deploy. A failed migration exits the start script
-  and Railway restarts it, up to 5 times.
+```bash
+ssh -i ~/.ssh/aws_career_platform ubuntu@jacksoncareer.me
+cd ~/career-platform && ./deploy/deploy.sh origin/main   # or any branch, tag, or commit
+```
 
-Railway has deprecated `railway.json` ("config as code") in favour of
-`.railway/railway.ts`. It keeps working until **2026-12-01**; migrate with
-`railway config migrate` before then.
+`deploy/deploy.sh` fetches, checks out the ref, runs `uv sync --locked --no-dev`, restarts the `career-platform` service, and waits for `/api/v1/health`. It prints the deployed commit, or the reason and the last 30 log lines and exits 1.
 
-### Service variables
+- **Service:** `deploy/career-platform.service` (installed at `/etc/systemd/system/`). Before uvicorn starts, systemd runs `alembic upgrade head`, then writes the content snapshot. A failed migration stops the start; a failed snapshot doesn't.
+- **nginx:** `deploy/nginx-career-platform.conf` (installed as the only enabled site). HTTP redirects to HTTPS, except Let's Encrypt's renewal path.
+- **A failed deploy takes the site down** until you deploy the previous commit again. There is one server and no old copy keeps serving. Tested 2026-11-09 with a deliberately failing migration.
+- `scripts/start.sh`, `railway.json`, and `railpack.json` are Railway leftovers; EC2 doesn't use them.
 
-Variables on the `career-platform` service (checked by name 2026-10-26). Never commit their values.
+### Server configuration
 
-| Variable | Set? | Value |
-|---|---|---|
-| `DATABASE_URL` | Yes | `${{Postgres.DATABASE_URL}}`, a reference that resolves to the private-network URL. The app converts `postgresql://` to the psycopg driver itself. |
-| `SESSION_SECRET` | Yes, since 2026-10-26 | A long random value. It signs admin session cookies. **It must be set:** the default in `app/config.py` is public, and anyone could sign an admin cookie with it. To rotate it without printing it: `python3 -c 'import secrets;print(secrets.token_urlsafe(48), end="")' \| railway variable set SESSION_SECRET --stdin -s career-platform`. Rotating logs the admin out. |
-| `SITE_URL` | Yes, since 2026-10-26 | `https://jacksoncareer.me`, used for the pages' `canonical` and `og:url` tags. Unset, they point to `http://127.0.0.1:8000`. |
-| `APP_ENV` | Yes, since 2026-10-26 | `production` |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | No, on purpose | Read only by `python -m app.seed` when creating the first admin in an empty database. The existing admin user and its password hash live in Postgres. |
+The app reads `~/career-platform/.env` on the instance (mode 600, never committed):
 
-Until 2026-10-26 only `DATABASE_URL` was set, so the site ran on the public default session secret and the wrong canonical URL. See `docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`, Task 5 Step 1.
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | `postgresql://career_app:<password>@<RDS endpoint>:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem`. Generated passwords are hex, so they need no URL escaping. |
+| `SESSION_SECRET` | A new random value generated on the server on 2026-11-09. **It must be set:** the default in `app/config.py` is public. |
+| `SITE_URL` | `https://jacksoncareer.me` |
+| `APP_ENV` | `production`. It also makes the admin session cookie `Secure`. |
+
+The database passwords are in my password manager and in `~/.config/career-platform/rds-passwords.env` on my laptop (mode 600).
 
 ### Domains and DNS
 
 | Name | Served by |
 |---|---|
-| `jacksoncareer.me` | Railway, as a custom domain with a Railway-issued certificate |
-| `career-platform-production-1a1e.up.railway.app` | Railway's generated domain |
+| `jacksoncareer.me` | `A` record to the EC2 Elastic IP, **DNS only**. nginx serves a Let's Encrypt certificate. |
 | `www.jacksoncareer.me` | Cloudflare. A **proxied** placeholder A record (`192.0.2.1`) plus a redirect rule send `http://www` and `https://www` to `https://jacksoncareer.me` with a 301, keeping the path and query. See `docs/evidence/www-redirect.md`. |
+| `aws.jacksoncareer.me` | `A` record to the same Elastic IP, DNS only, added 2026-11-09. nginx serves the same app over HTTPS with its own Let's Encrypt certificate; HTTP redirects to HTTPS on that name. Handy for SSH: `ssh ubuntu@aws.jacksoncareer.me`. |
 
-The domain is registered at Namecheap, and its DNS is hosted on Cloudflare. The
-root domain is a CNAME to the target Railway gives in `railway domain status
-jacksoncareer.me`; Cloudflare flattens it at the apex. Records are DNS-only, not
-proxied, so Railway issues and renews the certificate. `www` is the exception: it's proxied so Cloudflare can answer the redirect with its own edge certificate. Railway's ownership check
-is the TXT record `_railway-verify.jacksoncareer.me`; keep it.
+The domain is registered at Namecheap, and its DNS is hosted on Cloudflare. The MX, SPF, DKIM, and DMARC records are Zoho's; don't change them. `_railway-verify.jacksoncareer.me` is a Railway leftover, to delete when the Railway project is deleted.
+
+**Certificates:** `jacksoncareer.me` was issued 2026-11-09 through a Cloudflare DNS challenge, and `aws.jacksoncareer.me` the same day over HTTP. Both are valid until 2027-02-07. Both renew with the HTTP challenge (`webroot` at `/var/www/html`) and reload nginx afterwards; `certbot renew --dry-run` passes. `certbot.timer` checks twice a day.
 
 ### Operating it from the command line
 
-Install the Railway CLI (`brew install railway`). For `railway connect`, also
-install `psql` with `brew install libpq` and put `/opt/homebrew/opt/libpq/bin`
-on your `PATH`.
-
 ```bash
-railway login
-railway link --project prolific-enthusiasm --environment production --service career-platform
-railway deployment list          # recent deploys and their status
-railway logs                     # runtime logs of the current deploy
-railway logs --build <deploy-id> # build logs
-railway domain list              # read-only; bare `railway domain` CREATES a domain
-railway connect Postgres         # psql session on the production database
+export AWS_PROFILE=isba-4775 AWS_REGION=us-east-1
+aws login --profile isba-4775                      # when the session has expired
+ssh -i ~/.ssh/aws_career_platform ubuntu@jacksoncareer.me
+sudo journalctl -u career-platform -f              # app logs
+sudo tail -f /var/log/nginx/access.log             # requests
+aws rds describe-db-instances --db-instance-identifier career-platform-db
 ```
 
-DNS records can be listed with the Cloudflare CLI (`npm install --global cf`,
-`cf auth login`, `cf dns records list --zone jacksoncareer.me`).
+- **SSH refused or timing out?** My laptop's IP has probably changed. Add the new `/32` to port 22 of `career-web-sg` and remove the old one (`authorize-security-group-ingress`, then `revoke-security-group-ingress`).
+- **Database from the laptop:** RDS is private, so tunnel through the instance: `ssh -i ~/.ssh/aws_career_platform -N -L 55434:<RDS endpoint>:5432 ubuntu@jacksoncareer.me`, then connect to `127.0.0.1:55434` with `sslmode=require` (the hostname doesn't match through a tunnel, so `verify-full` can't be used there). Use the Homebrew 18.x client tools; Ubuntu's packaged client is too old for these dumps.
+- **OS updates** install automatically, and the instance reboots itself at 11:00 UTC when an update needs it. The app and nginx start on their own (tested 2026-11-09).
 
 ### Data
 
-The VM's SQLite data was copied into Postgres on 2026-10-11 with
-`python -m app.copy_db SOURCE_URL TARGET_URL`. The script copies every row into
-an empty, migrated database, keeps ids, and resets the id sequences. It refuses
-a target that has any rows. Run `python -m app.seed` only for a brand-new empty
-database.
+The data came from Railway's last dump, `railway-20261029T220722Z.dump` (taken 2026-10-29 22:07 UTC, no edits after it). It was restored into RDS on 2026-11-09 with `pg_restore --no-owner --no-privileges --exit-on-error`, connected as `career_app`, so the app's login owns every table. `scripts/db_fingerprint.sql` printed identical per-table checksums and sequence values for the restore and for the dump's reference fingerprint.
 
-Railway Postgres is the only copy of the live data. The Azure VM and its
-SQLite file were deleted on 2026-10-13, as the instructor directed after the
-Railway migration.
+Copies of the data:
+
+- **RDS** (live) and its automated backups. Backups keep **only 1 day**, because AWS's free account plan refused 7.
+- **Dumps outside AWS:** `~/backups/career-platform/` on my laptop, with `.sha256` checksums and `.fp` fingerprints. Keep a second copy off the laptop. RDS backups disappear with the account.
 
 ### Snapshot fallback and recovery
 
 The app keeps a snapshot of the published content at `SNAPSHOT_PATH` (default
-`data/public-profile.json`). `scripts/start.sh` writes it from the database on
-every boot, right after migrating, and each successful public request rewrites
+`data/public-profile.json`). systemd writes it from the database on
+every start, right after migrating, and each successful public request rewrites
 it. The file is gitignored, so a deploy never starts from placeholder content.
-If the boot can't write it (for example, no published profile), the app starts
+If the start can't write it (for example, no published profile), the app starts
 without one.
 
 | Situation | What a visitor gets |
@@ -179,68 +169,47 @@ without one.
 
 The resume PDF still comes from the snapshot during an outage, without
 projects. Admin writes fail closed. The next request after the database
-recovers returns 200 with projects, with no restart.
+recovers returns 200 with projects, with no restart. Re-tested on EC2 on 2026-11-09 by blocking outbound 5432 on the instance's firewall.
 
 To recover:
 
-1. Check `railway logs` and `GET /api/v1/health`. The health check doesn't
+1. Check `sudo journalctl -u career-platform` and `GET /api/v1/health`. The health check doesn't
    touch the database, so a 503 on `/` with a 200 on health points at the
    database.
-2. Restore database connectivity. Migrations run on the next boot, or redeploy
-   to trigger them.
+2. Check RDS is `available` (`aws rds describe-db-instances`), that `career-db-sg` still allows 5432 from `career-web-sg`, and the RDS events in the console. RDS may also be briefly restarting in its maintenance window (Sundays 10:00–10:30 UTC).
 3. Reload `/` and confirm HTTP 200 with the projects listed.
 
 ### Rolling back a bad change
 
-Written 2026-10-26. The code steps use standard Git and Railway features. The
-**data steps are untested**: no backup has been taken or restored yet.
+**Code:** deploy the last good commit: `./deploy/deploy.sh <good-sha>` on the instance. Fix `main` with `git revert <bad-sha>` afterwards, so the next deploy doesn't bring it back.
 
-**No Azure rollback anymore.** The migration plan's rollback (point DNS back
-to the VM at `52.159.85.45`) held until the VM was deleted on 2026-10-13 at
-23:03 UTC. Since then Railway is the only place the site runs.
+**If the bad change included a migration:** systemd runs `alembic upgrade head` on every start, so rolling back code alone leaves the newer schema. Run `.venv/bin/alembic downgrade <previous revision>` on the instance first (it reads `.env`), then deploy the old commit. Only one migration exists so far (`0001_initial`).
 
-**Code**
+**Data:**
 
-1. **Normal path:** `git revert <bad-sha>`, then `git push origin main`. Railway
-   rebuilds and deploys the revert like any other push. Check:
-   - `railway deployment list` shows the new deployment as `SUCCESS`
-   - the deploy log has `Wrote data/public-profile.json`
-   - `/`, `/projects` and `/api/v1/health` return 200
-2. **Emergency path:** in the Railway dashboard, open **Deployments**, choose
-   the last good deployment, then **Rollback**. That redeploys the old image
-   without a build. `main` still holds the bad commit, so the next push would
-   bring it back: follow up with step 1.
-3. **If the bad change included a migration:** `scripts/start.sh` runs
-   `alembic upgrade head` on every boot, so rolling back code alone leaves the
-   newer schema in place. Run `alembic downgrade <previous revision>` against
-   production first, then roll back the code. That needs access to the
-   database from inside Railway, which isn't set up yet (Postgres has no
-   public proxy). Only one migration exists so far (`0001_initial`), and its
-   downgrade has been tested on Postgres (commit `0ca8844`).
+1. **Before any risky data or schema change**, take a dump through the SSH tunnel (`pg_dump --format=custom --no-owner`), and freeze admin edits.
+2. **Within the last day**, RDS can restore to any point in time *as a new instance* (`aws rds restore-db-instance-to-point-in-time`); tested 2026-11-09. Point `DATABASE_URL` at it, or dump from it and restore into the main database.
+3. **Older than a day:** restore a dump (`pg_restore --clean --no-owner --no-privileges`) and reload `/`.
+4. **Data written after the copy** is lost by the restore. There's one admin (me), so re-enter those edits by hand.
 
-**Data**
+**No Railway rollback anymore:** the Railway trial ended on 2026-11-06, and its database can't be reached.
 
-Rolling data back needs a copy from before the change. **Right now there is
-none: Railway Postgres is the only copy of the site's data.** Railway's
-dashboard may offer volume backups; whether this plan includes them hasn't
-been checked.
+### Leaving AWS
 
-1. **Before any risky data or schema change**, take a dump and keep it
-   outside Railway (not in Git: it contains the admin password hash), for
-   example `pg_dump --format=custom` run from inside Railway's network.
-2. **Freeze admin edits** until the change is verified, so nothing is written
-   that a restore would lose.
-3. **To roll back**, restore the dump into the production database
-   (`pg_restore --clean`) and reload `/` to confirm the content.
-4. **Data written after the dump** is lost by the restore. The site has one
-   admin (me), so the fix is to re-enter those edits by hand through the
-   admin API, from my own record of what I changed. If edits weren't frozen,
-   compare a fresh dump of the bad state with the backup first to list them.
+The account closes with the course term. Before then, follow Task 8 of the AWS plan: dump and verify the data outside AWS, move the site, then delete the instance, **release the Elastic IP** (an unattached one keeps billing), remove RDS deletion protection and delete RDS and its snapshots, then the subnet group, security groups, and key pair.
 
-For an outage rather than a bad change, the database recovers on its own: see
-*Snapshot fallback and recovery* above.
+## Railway to AWS (2026-11-09)
 
-Never log or commit session secrets, administrator passwords, or database URLs.
+| Layer | Railway | AWS (EC2 + RDS) |
+|---|---|---|
+| Deploy | Every push to `main`, with a health check before switching traffic | Manual `deploy/deploy.sh`; a failed deploy means downtime until rollback |
+| Process | Railway's container and restart policy | systemd (`Restart=always`), starts at boot |
+| TLS | Railway's edge, renewed by Railway | nginx with Let's Encrypt, renewed by certbot on the instance |
+| OS | Railway's base image | Ubuntu 24.04 I run: unattended upgrades with automatic reboots |
+| Database | Railway Postgres, no backups, no access from the laptop | RDS: patched by AWS, 1-day point-in-time backups, private, reached through an SSH tunnel |
+| Network | Railway's private network | Two security groups; the database accepts only the web server |
+
+The move didn't go to plan in one way that mattered: the hard-deadline backup before the Railway trial ended (2026-11-05) never ran, so the site was down from 2026-11-06 until the DNS switch on 2026-11-09, and the 2026-10-29 dump became the only copy. Nothing was lost only because nothing had been edited since. Details: `migration-notes.md`, D3.
 
 ## Azure to Railway: who manages what
 
@@ -306,7 +275,7 @@ Records: [`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`](doc
 
 ## Decisions
 
-> **Written 2026-10-26 from the repository's records.** I wrote both decisions in class, but those originals were lost. These reconstructions use the plans, commits, and evidence linked in each one, and the vendor facts were checked on 2026-10-26.
+> **Written 2026-10-26 from the repository's records.** I wrote both decisions in class, but those originals were lost. These reconstructions use the plans, commits, and evidence linked in each one, and the vendor facts were checked on 2026-10-26. Decision 3 was written on 2026-11-09 from the AWS plan, `migration-notes.md`, and my choices recorded during that migration.
 
 ### 1. Move the site from the Azure VM to Railway with PostgreSQL
 
@@ -354,13 +323,26 @@ Records: [`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`](doc
 
 **How it turned out.** Inbound mail arrived on 2026-10-13. A webmail reply on 2026-10-25 reached Gmail's Inbox in 5 seconds with SPF, DKIM, and DMARC passing for `jacksoncareer.me` (`docs/evidence/zoho-header-check.md`, `docs/evidence/ex06.md`).
 
+### 3. Move from Railway to AWS with EC2 and a Single-AZ RDS database
+
+**Context (2026-10-29 to 2026-11-03).** The Railway trial was ending on 2026-11-06 and the course moved the site to AWS. I compared three AWS designs: EC2 with PostgreSQL on the same instance, EC2 with RDS, and Lambda with API Gateway and RDS.
+
+**Decision.** EC2 for the app and RDS PostgreSQL, Single-AZ, `t3.micro` and `db.t3.micro` (the course policy blocks `t4g`).
+
+**Why.** I wanted to learn to run a server again (nginx, systemd, TLS) but not to run the database myself: RDS handles patching and backups. EC2 with a local database was cheaper and faster to deploy, but leaves backups to me. Lambda was the least to operate but needed the most code changes before the deadline. Single-AZ because one small personal site doesn't justify paying for a standby.
+
+**Trade-offs accepted.** It's the most expensive of the three, about $28/month on demand. Deploys are manual and a failed one means downtime. The account is temporary. AWS's free plan then limited backups to 1 day.
+
+**How it turned out.** Live on 2026-11-09, three days after Railway went down, because the backup and cutover planned before the trial ended didn't happen. See *Railway to AWS* above.
+
 ## Costs, credits, and cleanup
 
-Recorded 2026-10-25 (PDT). Balances come from each provider's dashboard, read by me, except where noted.
+Recorded 2026-10-25 (PDT); AWS and Railway rows updated 2026-11-09. Balances come from each provider's dashboard, read by me, except where noted.
 
 | Service | What it provides | Kind | Plan / credit | Spent so far | Expires or renews | Cleanup plan |
 |---|---|---|---|---|---|---|
-| **Railway** (project `prolific-enthusiasm`) | `career-platform` app service, Postgres service with its volume, custom domain | Compute (app, Postgres), **retained storage** (Postgres volume) | Free trial: $5 of credit, 30 days | $0.51 ($4.49 of $5 left) | **Trial ends 2026-11-06** | Move the site to AWS after the midterm, before 2026-11-06. Take a database dump first, since the Postgres volume holds the only copy of the data. After the move, delete the Railway project. Railway's Free plan doesn't allow a custom domain. |
+| **AWS** (course account, profile `isba-4775`) | EC2 `t3.micro`, 20 GB EBS, Elastic IP, RDS `db.t3.micro` Single-AZ with 20 GB gp3 and 1-day backups | Compute, storage, network (public IPv4), backups | AWS free account plan; owned by the course. My login can't see billing or credits. | Unknown (no billing access). Estimated **$28.28/month on demand** before credits, from AWS's public price lists on 2026-11-03. | **Account closes with the term** (date to confirm with the instructor) | Follow *Leaving AWS* before the account closes. Ask whoever has billing access to set a budget alert. |
+| **Railway** (project `prolific-enthusiasm`) | Was the app and Postgres. **Trial ended 2026-11-06;** services failed or removed, database unreachable. | — | Free trial: $5 of credit, 30 days | $0.51 as of 2026-10-25 | Ended 2026-11-06 | Delete the project and the `_railway-verify` TXT record after the AWS site has run cleanly for 48 hours. |
 | **Azure for Students** (through the GitHub Student Developer Pack) | Was the VM, OS disk, NIC, static public IP, NSG, and virtual network in `rg-career-platform` | Compute (VM, deleted), storage (OS disk, deleted), **network (static IP, still billed while it exists)** | $100 credit per year, renewable with valid student standing | $4.08 of $100 | Credit expires in 332 days, about **2027-09-22** | The VM, disk, and NIC were deleted 2026-10-13 as instructed. Still to do: release the static IP `vm-career-platform-ip` (nothing points to it since 2026-10-26) and delete the rest of `rg-career-platform`, once the instructor's cleanup directions confirm it. |
 | **Namecheap** | Registration of `jacksoncareer.me` | Other (domain) | Free first year | $0 | Registered 2026-10-01; **renews 2027-10-01 for $23.98** | Decide before 2027-10-01 whether to renew. If it lapses, the site's address and the Zoho mailbox both stop working. |
 | **Cloudflare** | Authoritative DNS, the `www` redirect, the edge certificate for `www` | Other (DNS) | Free plan (zone shows "Free Website", checked 2026-10-26) | $0 | No expiry | Keep. Nameservers stay delegated to Cloudflare. |
@@ -385,19 +367,24 @@ Each row links to the record with the symptom, checks, diagnosis, repair, and re
 | Database outage served stale content with 200 | Application / database | Found by audit; live check deliberate | Code served the snapshot with 200 → changed to 503 with "Projects temporarily unavailable" (`4afc2ee`) → live Postgres restart gave 11 × 503 then 200 with projects | [`docs/evidence/reviewed-change.md`](docs/evidence/reviewed-change.md); `TASKS.md` final section |
 | Railway service variables missing (until 2026-10-26) | Configuration / security | Real | Canonical links pointed to `127.0.0.1`; a name-only variable listing showed only `DATABASE_URL`, so sessions were signed with the public default secret → set `SESSION_SECRET`, `SITE_URL`, `APP_ENV` → canonical correct, old-secret cookie gets 401 | Railway plan, Task 5 Step 1 annotation |
 
+| RDS creation refused: `FreeTierRestrictionError` (2026-11-03) | Cloud account limits | Real | `create-db-instance` with 7-day backups failed: "backup retention period exceeds the maximum available to free tier customers" → the account is on AWS's free plan → retried with 1-day retention (my choice) → instance `available` with the planned settings | `migration-notes.md` D1; AWS plan Task 3 |
+| `deploy.sh` exited 1 without saying why (2026-11-09) | Deployment | **Deliberate test** that found a real bug | Deployed a branch with a failing migration → exit 1 but no logs, because `systemctl restart` failed under `set -e` before the log step → print logs when the restart fails, with a test (`9fcc825`) → re-run shows the reason and the migration error; rollback works | `migration-notes.md` D8; AWS plan Task 4 Step 11 |
+| Site down after the Railway trial ended (2026-11-06 to 2026-11-09) | Hosting / process | Real | Railway returned 404 "Application not found" → the trial had ended before the planned backup and cutover → deployed to AWS from the 2026-10-29 dump and switched DNS → HTTPS 200 on every page, mail and GA4 confirmed | `migration-notes.md` D3; AWS plan Task 6 |
+
 ## Remaining limitations
 
-- **No database backup.** Railway Postgres is the only copy of the site's data, and the data steps of the rollback procedure are untested.
-- **No database access from the laptop.** Postgres has no public proxy, so migrations, dumps, and inspection would need `railway ssh` set up first.
-- **Pre-cutover page and PDF parity was never checked**, and no checks were recorded on the cutover day (2026-10-11).
-- **Azure evidence is incomplete:** no deliberate VM restart was recorded, and the certbot and nginx HTTPS configuration were never saved before the VM was deleted.
+- **RDS backups keep only 1 day** (AWS's free account plan limit). Older recovery depends on dumps kept outside AWS, and the only dump so far is from 2026-10-29.
+- **The site was down from 2026-11-06 to 2026-11-09**, because the pre-deadline backup and cutover didn't happen before the Railway trial ended.
+- **A failed deploy means downtime** until the previous commit is deployed again. There's one server, and deploys aren't automated or tested before they go live.
+- **No monitoring or budget alert yet.** Nothing warns me if the site goes down, and my AWS login can't see the bill.
+- **SSH works from one IP**, so a new laptop IP means updating `career-web-sg` before I can get in.
+- **The AWS account ends with the term**, so this hosting is temporary.
+- **The certbot account has no email address**, so Let's Encrypt can't send expiry warnings.
 - **Admin activity isn't logged**, so whether anyone used the public default session secret before 2026-10-26 is unknown.
 - **The site answers HEAD requests with 405** (GET-only routes), which can confuse uptime checkers and `curl -I`.
-- **During the live outage test one request returned 200** mid-outage, most likely over a connection that hadn't closed yet. Not verified.
 - **GA4 undercounts** visitors who decline or block scripts, and my test visits aren't filtered out.
-- **No pre-MX email test** was done, so what happened to mail before MX existed isn't recorded.
-- **Deadlines:** Railway stops supporting `railway.json` after 2026-12-01. The Railway certificate should renew around 2026-12-10, which should be checked.
 - **The Azure static IP `52.159.85.45`** and its NSG and virtual network still exist in `rg-career-platform` and should be cleaned up.
+- **Railway leftovers:** the project itself, the `_railway-verify` record, the Railway SSH key, and `railway.json`, `railpack.json`, and `scripts/start.sh` in the repo.
 
 ## Reflection
 
@@ -410,6 +397,7 @@ Building my career platform showed me how many separate pieces have to work toge
 - Azure VM migration plan: [`docs/superpowers/plans/2026-09-24-azure-vm-migration.md`](docs/superpowers/plans/2026-09-24-azure-vm-migration.md)
 - Operate-the-VM plan (nginx, systemd, verification, and the decommission note): [`docs/superpowers/plans/2026-10-01-operate-the-vm.md`](docs/superpowers/plans/2026-10-01-operate-the-vm.md)
 - Railway and PostgreSQL migration plan, which stands in for a separate spec: [`docs/superpowers/plans/2026-10-10-railway-postgres-migration.md`](docs/superpowers/plans/2026-10-10-railway-postgres-migration.md)
+- AWS EC2 + RDS migration plan, with results per step: [`docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-03-aws-ec2-rds-migration.md); deviations from it: [`migration-notes.md`](migration-notes.md); evidence: [`docs/evidence/aws-migration.md`](docs/evidence/aws-migration.md)
 - HTTPS write-up (Exercise 4, with Azure and Railway addenda): [`docs/how-this-site-is-secured.md`](docs/how-this-site-is-secured.md)
 - Audit checklist and live outage record: [`TASKS.md`](TASKS.md)
 

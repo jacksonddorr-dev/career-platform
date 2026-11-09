@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-The web request path on Azure (historical) and on Railway (current), plus the email and analytics paths. Diagrams 1–2 were drawn 2026-10-20 as a midterm study reference; diagrams 3–4 and the `www` redirect were added 2026-10-26. All are drawn from the repository's records (`docs/superpowers/plans/2026-10-01-operate-the-vm.md`, `scripts/start.sh`, `README.md`, `docs/evidence/dns-before-zoho.md`). Anything marked `?` or "unknown" isn't confirmed by the repository.
+The web request path on Azure and Railway (both historical) and on AWS (current, since 2026-11-09), plus the email and analytics paths. The AWS diagram (section 5) was added 2026-11-09 from `deploy/`, `README.md`, and the AWS migration plan. Diagrams 1–2 were drawn 2026-10-20 as a midterm study reference; diagrams 3–4 and the `www` redirect were added 2026-10-26. All are drawn from the repository's records (`docs/superpowers/plans/2026-10-01-operate-the-vm.md`, `scripts/start.sh`, `README.md`, `docs/evidence/dns-before-zoho.md`). Anything marked `?` or "unknown" isn't confirmed by the repository.
 
 **Assumptions:** no cached DNS answer, a new TCP connection, and the browser tries `http://jacksoncareer.me` first and follows the 301 to `https://jacksoncareer.me`.
 
@@ -40,7 +40,7 @@ flowchart LR
   NET -- "2 · TCP 443" --> NSG -- "3 · TLS" --> NGX -- "4 · HTTP" --> UV -- SQL --> DB
 ```
 
-## 2. What changes on Railway
+## 2. What changes on Railway (historical, 2026-10-11 to 2026-11-06)
 
 ```mermaid
 flowchart LR
@@ -123,3 +123,38 @@ flowchart LR
 
 Analytics events go from the visitor's browser straight to Google. They never pass through Railway, so the app's logs don't show them. Before the visitor clicks **Allow analytics**, nothing is loaded from Google (Consent Mode default `denied`). On 2026-10-25 Realtime showed `page_view` and an outbound `click` to LinkedIn (`docs/evidence/ex06.md`, section 3). The collection hostname is shown generically; I didn't capture the exact host in the Network tab.
 
+
+## 5. AWS: EC2 + RDS (current, since 2026-11-09)
+
+```mermaid
+flowchart LR
+  LAP["Laptop browser<br/>jacksoncareer.me"]
+  CF["Cloudflare DNS<br/>jacksoncareer.me A → Elastic IP<br/>DNS only"]
+
+  subgraph AWS["AWS us-east-1 · default VPC · us-east-1a"]
+    subgraph WEBSG["career-web-sg: 80, 443 from anywhere · 22 from my laptop IP"]
+      NGINX["EC2 t3.micro · nginx<br/>Let's Encrypt cert<br/>TLS ends here"]
+      APP["uvicorn × 2 (systemd)<br/>127.0.0.1:8000"]
+    end
+    subgraph DBSG["career-db-sg: 5432 from career-web-sg only"]
+      RDS[("RDS PostgreSQL 18.6<br/>Single-AZ · private<br/>1-day backups")]
+    end
+  end
+
+  CFE["Cloudflare edge<br/>www.jacksoncareer.me (proxied)"]
+
+  LAP <-. "1 · jacksoncareer.me?<br/>→ Elastic IP" .-> CF
+  LAP -- "2 · TCP 443 (80 → 301)<br/>3 · TLS" --> NGINX -- "4 · HTTP +<br/>X-Forwarded-Proto" --> APP -- "SQL over TLS<br/>verify-full, TCP 5432" --> RDS
+  LAP -. "www: HTTP 80 / HTTPS 443" .-> CFE -. "301 to https://jacksoncareer.me/…" .-> LAP
+```
+
+**Back vs. Railway:** a server I run (OS updates, nginx, certbot, systemd, SSH) and firewall rules (security groups). **New:** the database is a separate managed service on the private network, reached only from the web server; from the laptop it's reached through an SSH tunnel.
+
+| Step | Client → server | Protocol and port | AWS |
+|---|---|---|---|
+| 1 | Laptop → resolver → Cloudflare | DNS, UDP 53 | Root `A` record, answer is the Elastic IP |
+| 2 | Browser → EC2 | TCP 443 (or 80) | `career-web-sg` allows it; nginx on 80 redirects to HTTPS, except `/.well-known/acme-challenge/` |
+| 3 | Browser → nginx | TLS 1.2/1.3: hostname `jacksoncareer.me`, Let's Encrypt chain | Ends at nginx; TLS 1.0 and 1.1 refused |
+| 4 | nginx → app | Plain HTTP on loopback | `127.0.0.1:8000`; uvicorn trusts `X-Forwarded-Proto` from `127.0.0.1` only |
+| 4b | App → RDS | PostgreSQL over TLS, TCP 5432 | `career-db-sg` allows only `career-web-sg`; the app checks the RDS certificate (`sslmode=verify-full`) |
+| 5 | Response | Same path back | — |
