@@ -120,7 +120,8 @@ def login(username: str = Form(...), password: str = Form(...),
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     result = JSONResponse({"authenticated": True, "username": username})
-    result.set_cookie("session", make_session(username), httponly=True, secure=False, samesite="lax")
+    result.set_cookie("session", make_session(username), httponly=True,
+                      secure=get_settings().app_env == "production", samesite="lax")
     return result
 
 

@@ -106,3 +106,23 @@ def test_google_tag_waits_for_consent_on_each_public_page(client):
             assert html.index("gtag('consent', 'default'") < html.index("gtag('config'"), path
             assert 'id="consent"' in html and "data-consent-allow" in html and "data-consent-decline" in html, path
             assert "data-consent-open" in html, path
+
+
+def _login_cookie(client, admin_user, monkeypatch, app_env):
+    from app.config import get_settings
+    monkeypatch.setenv("APP_ENV", app_env)
+    get_settings.cache_clear()
+    try:
+        login = client.post("/api/v1/auth/login", data={"username": admin_user.username, "password": "correct horse battery staple"})
+    finally:
+        get_settings.cache_clear()
+    assert login.status_code == 200
+    return login.headers["set-cookie"].lower()
+
+
+def test_login_cookie_is_secure_in_production(client, admin_user, monkeypatch):
+    assert "secure" in _login_cookie(client, admin_user, monkeypatch, "production")
+
+
+def test_login_cookie_is_not_secure_in_development(client, admin_user, monkeypatch):
+    assert "secure" not in _login_cookie(client, admin_user, monkeypatch, "development")

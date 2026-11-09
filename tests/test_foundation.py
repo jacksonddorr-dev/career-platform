@@ -81,3 +81,25 @@ def test_start_script_writes_real_snapshot_after_migrating_without_blocking_boot
     assert migrate < snapshot < server
     # start.sh runs under `set -e`, so a failed snapshot must be caught or the app never starts.
     assert "||" in lines[snapshot]
+
+
+def test_ec2_service_binds_loopback_and_migrates_before_start():
+    unit = Path("deploy/career-platform.service").read_text()
+    lines = unit.splitlines()
+    assert "--host 127.0.0.1 --port 8000 --workers 2" in unit
+    assert "0.0.0.0" not in unit and "forwarded-allow-ips" not in unit
+    migrate = next(i for i, line in enumerate(lines) if line.startswith("ExecStartPre=") and "alembic upgrade head" in line)
+    snapshot = next(i for i, line in enumerate(lines) if "app.snapshot" in line)
+    start = next(i for i, line in enumerate(lines) if line.startswith("ExecStart="))
+    assert migrate < snapshot < start
+    # The leading "-" lets a failed snapshot continue; a failed migration must still stop the start.
+    assert lines[snapshot].startswith("ExecStartPre=-")
+    for setting in ("Restart=always", "User=ubuntu", "WorkingDirectory=/home/ubuntu/career-platform"):
+        assert setting in lines
+
+
+def test_ec2_nginx_redirects_http_and_forwards_proto():
+    conf = Path("deploy/nginx-career-platform.conf").read_text()
+    for directive in ("return 301 https://jacksoncareer.me$request_uri;", "listen 443 ssl;",
+                      "proxy_pass http://127.0.0.1:8000;", "proxy_set_header X-Forwarded-Proto $scheme;"):
+        assert directive in conf
